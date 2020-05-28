@@ -1,0 +1,67 @@
+                              VDEB
+
+
+
+A     Assemblå  Z8°  mnemonicó startinç aô  giveî  location®  Alì 
+numberó shoulä bå expresseä iî hexadecimaì format¬ anä musô starô 
+witè á numeriã character¬ eç A00° becomeó 0A000® Tï quiô typå  aî 
+emptù line¬ iå return.
+     
+C    Clearó  thå  screeî  anä re-displayó thå Z8°  registeró  anä 
+contentó oæ memory.
+
+Ä     Displaù contentó oæ á memorù blocë aô á  specifeä  locatioî 
+anä enteò memorù changå mode® (".¢ displayó memorù pointeä tï  bù 
+thå  currentlù addresseä register¬ iå thå registeò  addresseä  bù 
+thå registeò cursor)®  Thå contentó oæ memorù addresseä tï bù thå 
+memorù cursoò caî bå altereä bù simplù typinç iî thå ne÷ valuå iî 
+hex® Iæ aî erroò ió madå theî enteò fouò zeroó anä starô again® 
+ 
+Å     rEaä‚ á specifieä numbeò oæ recordó <r¾ froí  á  specifieä 
+disã  <d>¬  tracë <t>¬ anä sectoò <s>¬ readinç theí  intï  memorù 
+startinç  aô  thå memorù cursoò position® NÂ theså  arå  physicaì 
+sectoró anä trackó noô thå logicaì oneó useä bù CPM.
+
+Æ    Filì memorù startinç froí á specifieä starô addresó uğ tï  á 
+specifieä enä addresó witè á giveî character.
+
+Ç     Go®  Executå machinå codå froí á  starô  addresó  (default½ 
+Prograí Counter© uğ tï thå finisè addresó (defaulô ½ Don'ô stop)® 
+Seå noteó oî breaë pointó iî Trace.
+
+I    Invert between displaying memory as ASCII or hex.
+
+Ì     Lisô  ouô  Z8°  disassembleä machinå  codå  startinç  aô  á 
+specifeä  address® (defaulô ½ continuå froí lasô list¬  ".¢  lisô 
+froí Prograí counter).
+
+N    Numbeò  oæ  timeó  thå followinç Ó oò Ô  commanä  ió  tï  bå 
+repeated.
+
+R    Register®   Changå   contentó  oæ  thå  registeò   currentlù 
+addressed by the register cursor.
+
+Ó   Singlå Steğ througè thå instructioî pointeä tï bù thå Prograí 
+counter® Notå thió commanä workó usinç interupts¬ iô ió thereforå 
+imperativå  thaô  interruptó arå enabled® Ó  caî  singlå  steppeä 
+througè ROÍ aó welì aó RAM.
+
+Ô     Tracå  ió similaò tï Steğ buô CALLó arå treateä  aó  singlå 
+instructions®  Tracå  workó bù settinç á breaë  poinô  afteò  thå 
+instructioî  tï bå executed® Iæ thå prograí meetó  anotheò  breaë 
+poinô  beforå thå onå seô bù Tracå (oò Go© theî thå prograí  wilì 
+cleaò thå wronç breaë point.
+
+Ö    Videï RAÍ switch® Thió causeó thå memorù displaù tï sho÷ thå Šcontentó oæ VRAM¬ thå RAÍ useä bù thå Videï Displaù Processoò foò 
+thå TÖ outpuô oî thå MTX® Iî thió modå Ä anä Æ alsï worë oî VRAM® 
+NÂ steppinç througè codå whicè executeó twï bytå transferó tï thå 
+VDĞ  wilì  noô worë iî thió modå aó  rå-displayinç oæ  VRAÍ  wilì 
+destroù  thå writå sequence® Thå displayinç oæ VRAÍ alsï  changeó 
+thå VDP'ó autï incrementinç pointer.
+
+×    Writå tï disc» thå converså oæ thå Å command® Writeó  ouô  á 
+giveî  numbeò oæ recordó (12¸ bytes© froí memorù startinç aô  thå 
+currenô memorù cursoò positioî tï disã aô á specifeä drive¬ tracë 
+anä sector.
+ veî numbeò oæ recordó (12¸ bytes© froí memorù startinç  aô 
+     thå  currenô  memorù cursoò positioî 

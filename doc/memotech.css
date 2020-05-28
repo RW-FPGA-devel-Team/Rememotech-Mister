@@ -1,0 +1,39 @@
+/*
+
+memotech.css - Andys Memotech Stylesheet
+
+Document is white on black.
+Everything uses a nice font, and inherits color and background.
+Give titles a red bar above them.
+Eliminate effect of use of BORDER in table definition.
+Table and tables elements have a grey border.
+Table heading cells have gray background.
+Links are white or grey, and background turns red when hovered.
+On IE you need to use a:hover to select links, but not anchors.
+Elsewhere a[href]:hover selects links, a:hover selects links and anchors.
+Addresses in fixed width font.
+
+*/
+
+body { color: #ffffff; background: #000000; }
+* { font-family: Arial, Verdana, sans-serif; color: inherit; background: inherit; }
+h1 { border-top: 12px solid #800000; padding-top: 6px; }
+h2 { border-top: 10px solid #800000; padding-top: 5px; }
+h3 { border-top:  8px solid #800000; padding-top: 4px; }
+h4 { border-top:  6px solid #800000; padding-top: 3px; }
+h5 { border-top:  4px solid #800000; padding-top: 2px; }
+h6 { border-top:  2px solid #800000; padding-top: 1px; }
+table,th,td { border: 2px solid #808080; border-collapse: collapse; padding-left: 5px; padding-right: 5px; padding-top: 3px; padding-bottom: 3px; }
+th { background-color: #808080; text-align: left; }
+pre { margin-left:30px; font-family: Courier, monospace; color: inherit; background: inherit; }
+*:link { text-decoration: underline; }
+a:link { color: #ffffff; }
+a:visited { color: #808080; }
+a[href]:hover { color: #ffffff; background: #800000; }
+*:link.nav { font-size: 200%; text-decoration: underline; }
+a:link.nav { font-size: 200%; color: #ffffff; }
+a:visited.nav { font-size: 200%; color: #808080; }
+a[href]:hover.nav { font-size: 200%; color: #ffffff; background: #800000; }
+address { font-family: Courier new, monospace; font-style: normal; }
+code { font-family: Courier, monospace; color: inherit; background: inherit; }
+img.center { display: block; margin-left: auto; margin-right: auto; }

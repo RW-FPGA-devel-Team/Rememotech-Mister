@@ -1,0 +1,757 @@
+TITLE	SDXMAIN	SDX main
+
+; This is a reconstruction of the source for the SDX ROM.
+; A SDX ROM was disassembled using BE and BEZ80.
+; Symbols were taken from a PDF of a printed listing of the ROM.
+; This was post-processed using a custom script, to make it more M80-like.
+; Finally, salient text in the PDF was transcribed to this source.
+
+.Z80
+CSEG
+
+	INCLUDE BDOS.INC
+	INCLUDE BASIC.INC
+	INCLUDE	SYSVARS.INC
+	INCLUDE	SDXCONF.INC
+	INCLUDE	SDXHIGH.INC
+
+	EXT	INITLZ,RWGO,EXCNFG,EXRD,EXWR,BLKRD
+	EXT	DUSER
+
+; signature
+	DB	8,7,6,5,4,3,2,1
+
+	DW	ROMCODE
+	DS	2
+;
+; ROM command calls here (=0200CH)
+;
+ROM6::	JP	CPMLDR
+	NOP
+;
+; power-up code calls here (=02010H)
+;
+POC::	JP	INITDSC
+	NOP
+;
+;
+;
+CPMLDR:	CALL	INITDSC
+	CALL	LOADER
+	JP	RETBASIC
+;
+;
+;
+LOADER:	LD	HL,BDOSADDR-1		; =0D6FFH
+	LD	(STKLIM),HL
+	CALL	RNGCHK
+	CALL	Z,MOVLST
+	LD	HL,?CNFG
+	LD	DE,CNFG
+	LD	BC,?PEND-?CNFG+1
+	LDIR
+	LD	A,(PAGE)
+	LD	(SWROM+1),A		; put our ROM page in SWROM code
+	CALL	INDSC			; initialise DSC
+	CALL	RWGO			; read head move
+	LD	HL,0
+	LD	(TRKRQ),HL
+	LD	B,35
+	CALL	BLKRD			; load BDOS and BIOS
+	CALL	DSCHK			; check for 59K system
+	CALL	RELOC			; relocate BDOS and BIOS
+	CALL	INCPM			; initialise BDOS and BIOS
+	LD	HL,CHNL1
+	LD	B,5*42
+	XOR	A
+CLRLP:	LD	(HL),A
+	INC	HL
+	DJNZ	CLRLP
+	LD	HL,JP59K
+	LD	(SDXBDOS+1),HL
+	LD	HL,SDXBDOS
+	LD	(HL),0C3H		; JP instruction
+	CALL	CCPSTART
+	LD	HL,DSCFLG
+	LD	(HL),1
+	RET
+;
+; Check for 59K system
+;
+DSCHK:	LD	A,(CPMLOC)
+	CP	0D7H
+	RET	Z
+	RST	010H
+	DB	08EH			; write string, 14 chars
+	DB	00DH,00AH,'DISC ERROR',00DH,00AH
+	JP	RETBASIC
+;
+; Initialise DSC
+;
+INDSC:	LD	HL,PTRKP
+	XOR	A
+	LD	B,6
+INDS1:	LD	(HL),A			; PTRKP to SWUF = 0
+	INC	HL
+	DJNZ	INDS1
+	DEC	A
+	LD	B,22
+INDS2:	LD	(HL),A
+	INC	HL
+	DJNZ	INDS2
+	LD	HL,DBUF
+	LD	(BFID+6),HL
+	XOR	A
+	LD	(DRVRQ),A		; boot drive is B:
+
+; record the boot drive type
+	IFT	DRVB03
+	LD	A,003H
+	ENDIF
+	IFT	DRVB07
+	LD	A,007H
+	ENDIF
+	IFT	DRVB18
+	LD	A,018H
+	ENDIF
+	LD	(CFGBYT),A		; store boot drive type
+
+	LD	HL,20
+	LD	(TRKRQ),HL		; track 0
+	LD	HL,18
+	LD	(SECRQ),HL		; record is 1st record of BDOS
+	LD	HL,BDOSADDR
+	LD	(DMARQ),HL		; DMA address is BDOS start
+	CALL	INITLZ
+
+; record the types of B: and C:
+	IFT	DRVB03
+	IFT	DRVC03
+	LD	HL,00303H		; B:03,C:03
+	LD	(CFGTAB),HL
+	ELSE
+	LD	A,003H			; B:03
+	LD	(CFGTAB),A
+	ENDIF
+	ENDIF
+	IFT	DRVB07
+	IFT	DRVC07
+	LD	HL,00707H		; B:07,C:07 -- !!! DANGER !!!
+	LD	(CFGTAB),HL
+	ELSE
+	LD	A,007H			; B:07
+	LD	(CFGTAB),A
+	ENDIF
+	ENDIF
+	IFT	DRVB18
+	LD	A,018H			; B:18
+	LD	(CFGTAB),A
+	ENDIF
+
+; record the type of F:
+	IFT	DRVF51
+	LD	A,051H
+	LD	(CFGTAB+4),A
+	ENDIF
+	IFT	DRVF52
+	LD	A,052H
+	LD	(CFGTAB+4),A
+	ENDIF
+	IFT	DRVF51 OR DRVF52
+	LD	A,4
+	LD	(RAMDRV),A
+	ENDIF
+
+	XOR	A
+	LD	(CDDRV),A		; current logged drive is B:
+	INC	A
+	LD	(BPNT),A		; boot drive, range 1-8
+	LD	A,10
+	LD	(RETRY),A
+	RET
+;
+; Cold boot routine
+;
+INCPM:
+
+; setup DPH for A:/B:
+	LD	DE,DPH_A+10
+	LD	HL,DPHTAB
+	LD	BC,6
+	LDIR
+	LD	DE,DPH_B+10
+	LD	HL,DPHTAB
+	LD	BC,6
+	LDIR
+
+; setup DPH for C:
+	IFT	DRVC03 OR DRVC07
+	LD	DE,DPH_C+10
+	LD	HL,DPHTC
+	LD	BC,6
+	LDIR
+	ENDIF
+
+; setup DPH for F:
+	IFT	DRVF51 OR DRVF52
+	LD	DE,DPH_F+10
+	LD	HL,DPHTF
+	LD	BC,6
+	LDIR
+	ENDIF
+
+	LD	HL,DMA_DEF
+	LD	(DMARQ),HL
+	RET
+;
+;
+;
+CCPSTART:
+	LD	C,RESDSC
+	CALL	SDXBDOS
+	RET
+;
+;
+;
+RELOC:	LD	HL,RELTAB
+	LD	B,16
+RLOOP:	PUSH	BC
+	LD	E,(HL)
+	INC	HL
+	LD	A,(HL)
+	ADD	A,014H			; offset for 59K system
+	LD	D,A
+	INC	HL
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	INC	HL
+	EX	DE,HL
+	LD	(HL),C
+	INC	HL
+	LD	(HL),B
+	EX	DE,HL
+	POP	BC
+	DJNZ	RLOOP
+	LD	HL,ROMERR
+	LD	DE,ERRFLG
+	LD	BC,ERREND-ROMERR+1
+	LDIR				; load error routine to BDOS
+	RET
+;
+; Relocations table
+;
+RELTAB:	DW	0C325H,0DA00H		; move BDOS stack below 0C601H
+	DW	0C3A2H,RETBASIC
+	DW	0C3B8H,RETBASIC
+	DW	0CF91H,DMA_DEF
+	DW	0D3F5H,TRKRQ
+	DW	0D3FDH,TRKRQ
+	DW	0D405H,SECRQ
+	DW	0D40DH,DMARQ
+	DW	0D437H,BPNT
+	DW	0D43BH,DRVRQ
+	DW	0D445H,CDDRV
+	DW	0D44DH,CDDRV
+	DW	0D454H,RETRY
+	DW	0D459H,READ
+	DW	0D468H,RETRY
+	DW	0D46DH,WRITE
+;
+; Patches to apply to DPHs for drives A:/B:,C:,F:
+;
+; Format is DW dpbptr,checkvectorptr,allocvectorptr
+;
+VECP0	EQU	VECST
+
+; A:/B:
+DPHTAB:
+	IFT	DRVB03
+	DW	PBASE+1,VECP0+20,VECP0	; 16 byte checks, 20 byte allocs
+VECP1	EQU	VECP0+16+20
+	ENDIF
+	IFT	DRVB07
+	DW	PBASE+1,VECP0+40,VECP0	; 32 byte checks, 40 byte allocs
+VECP1	EQU	VECP0+32+40
+	ENDIF
+	IFT	DRVB18
+	DW	PBASE+1,TDBUF,DBUF	; 128 byte checks, 256 byte allocs
+					; Note: SD Card code doesn't need or
+					; use DBUF (256 bytes) or TDBUF (192
+					; bytes), so we can safely reuse them
+VECP1	EQU	VECP0			; without using any vector space
+	ENDIF
+
+; C:
+DPHTC:
+	IFT	DRVC03
+	DW	PBASE+1,VECP1+20,VECP1	; 16 byte checks, 20 byte allocs
+VECP2	EQU	VECP1+16+20
+	ENDIF
+	IFT	DRVC07
+	DW	PBASE+1,VECP1+40,VECP1	; 32 byte checks, 40 byte allocs
+VECP2	EQU	VECP1+32+40		; !!! DANGER, overflow !!!
+	ENDIF
+	IFF	DRVC03 OR DRVC07
+VECP2	EQU	VECP1
+	ENDIF
+
+; F:
+DPHTF:
+	IFT	DRVF51
+	DW	PBASE+17,VECP2+32,VECP2	; 0 byte checks, 32 byte allocs
+VECP3	EQU	VECP2+0+32
+	ENDIF
+	IFT	DRVF52
+	DW	PBASE+17,VECP2+20,VECP2	; 0 byte checks, 20 byte allocs
+VECP3	EQU	VECP2+0+20
+	ENDIF
+	IFF	DRVF51 OR DRVF52
+VECP3	EQU	VECP2
+	ENDIF
+
+	IFT	VECP3 GT VECEND
+	.PRINTX	/!!! DANGER, vectors are too large !!!/
+	ENDIF
+
+;
+; New BDOS error routine loaded to ERRFLG
+;
+ROMERR:	PUSH	HL
+	LD	BC,CRLF0		; reflects where CRLF1 will be
+	CALL	PRINT0			; reflects where PRINT1 will be
+	LD	A,(CURDSK)
+	ADD	A,'A'
+	LD	(DSKERR),A
+	LD	BC,DSKMSG
+	CALL	PRINT0
+	POP	BC
+	CALL	PRINT0
+ERRFL1:	CALL	KBD
+	JR	Z,ERRFL1
+	RET
+;
+PRINT1:	LD	A,(BC)
+	CP	'$'
+	RET	Z
+	CALL	PRINTX
+	INC	BC
+	JR	PRINT1
+;
+CRLF1:	DB	00DH,00AH,'$'
+; end of block copied to ERRFLG
+ERREND:	NOP
+;
+; Initialise DSC
+;
+INITDSC:
+	CALL	INITLZ
+	LD	HL,USRCPY
+	LD	DE,USER-2
+	LD	BC,6
+	LDIR
+	LD	HL,USERCODE
+	LD	DE,USRJMP
+	LD	BC,USREND-USERCODE+1
+	LDIR
+	LD	HL,USRJMP
+	LD	BC,NROM-USERCODE+1	; =5
+	ADD	HL,BC
+	LD	A,(PAGE)
+	LD	(HL),A
+	LD	DE,JPLINK
+	LD	B,2
+	LD	A,0C9H			; =RET
+LNKLP:	LD	(DE),A
+	INC	DE
+	INC	DE
+	INC	DE
+	DJNZ	LNKLP
+	XOR	A
+	LD	(DSCFLG),A		; clear disc flag
+	LD	HL,USERIO+2
+	LD	A,(HL)
+	CP	036H			; address set by monitor ROM
+	RET	NZ
+	LD	HL,KEYJP
+	LD	(USERIO+1),HL
+	LD	DE,COPY
+	EX	DE,HL
+	LD	BC,30
+	LDIR
+	RET
+;
+COPY:	LD	HL,KEYJP+25
+	LD	DE,USER-2
+	LD	BC,5
+	LDIR
+	LD	HL,STKLIM+1
+	LD	A,(HL)
+	CP	0F5H
+	JP	C,03622H		; not symbol in original source either
+	LD	(HL),0F4H
+	JP	03622H
+;
+; User bytes
+;
+USRCPY:	DB	0C9H,007H,0C3H
+	DW	USRJMP
+;
+; This code is loaded to USRJMP
+;
+USERCODE:
+	LD	A,(PAGE)
+	PUSH	AF
+NROM:	LD	A,070H
+	LD	(PAGE),A
+	OUT	(000H),A
+	PUSH	DE
+	CALL	USEROM
+	POP	DE
+	POP	AF
+	LD	(PAGE),A
+	OUT	(000H),A
+USREND:	RET
+;
+; Return with Z=1 if ring loaded
+;
+RNGCHK:	LD	B,4
+	LD	DE,INTA+3
+	LD	HL,TSTBLK
+RNGC1:	LD	A,(DE)
+	CP	(HL)
+	RET	NZ
+	INC	DE
+	INC	HL
+	DJNZ	RNGC1
+	LD	A,(RNGFLG)
+	OR	A
+	JR	Z,RNGC3
+	LD	B,003H
+RNGC2:	DEC	A
+	RET	Z
+	DJNZ	RNGC2
+	RET
+RNGC3:	LD	A,(RNGERR)
+	OR	A
+	RET	Z
+	SUB	037H ; ='7'
+	RET	Z
+	DEC	A
+	RET
+;
+TSTBLK:	PUSH	DE
+	EX	AF,AF'
+	PUSH	AF
+	EX	AF,AF'
+;
+; Shift the top of the list to LSTHGH from a higher address and
+; sets the bottom of the mailbox to LSTLOW. If (RNGFLG) < 2, then the list
+; is undefined and the pointers can be set equl to LSTHGH
+;
+MOVLST:	DI
+	LD	A,(RNGFLG)
+	BIT	1,A
+	JR	NZ,MOVLS1		; jump if list defined
+	LD	HL,LSTHIGH
+	LD	(LSTTOP),HL
+	LD	(LSTBAS),HL
+	LD	(NLIST),HL
+	LD	HL,LSTLOW
+	LD	(STKLIM),HL
+	EI
+	RET
+;
+MOVLS1:	XOR	A
+	LD	(NEWNAM),A
+	LD	HL,(LSTBAS)
+	PUSH	HL
+	LD	HL,(NLIST)
+	PUSH	HL
+	EI
+	LD	HL,(LSTTOP)
+	LD	DE,LSTHIGH
+	AND	A
+	SBC	HL,DE
+	LD	B,H
+	LD	C,L
+	JP	Z,MOVLSX
+	LD	HL,(LSTTOP)
+	POP	DE
+	AND	A
+	SBC	HL,DE
+	EX	(SP),HL
+	SBC	HL,BC
+	EX	(SP),HL
+	PUSH	DE
+	PUSH	HL
+	EX	DE,HL
+	AND	A
+	SBC	HL,BC
+	POP	BC
+	POP	DE
+	PUSH	HL
+	EX	DE,HL
+	LD	A,B
+	OR	C
+	JR	Z,MOVLS2
+	LDIR
+MOVLS2:	POP	BC
+	POP	DE
+	DI
+	LD	A,(NEWNAM)
+	OR	A
+	JP	NZ,MOVLST
+	LD	HL,LSTHIGH
+	LD	(LSTTOP),HL
+	LD	(LSTBAS),DE
+	LD	(MBXTOP),DE
+	LD	(NLIST),BC
+	LD	HL,LSTLOW
+	LD	(STKLIM),HL
+	INC	HL
+	LD	(MBXBEG),HL
+	LD	(MBXEND),HL
+	EI
+	EX	DE,HL
+	XOR	A
+	SBC	HL,DE
+	JR	NC,CLRMB
+	LD	HL,0
+CLRMB:	LD	(MBXCNT),A
+	LD	(MBXFREE),HL
+	LD	(MBXSIZE),HL
+	RET
+MOVLSX:	POP	HL
+	POP	HL
+	RET
+;
+;
+;
+USEROM:	LD	A,(DSCFLG)
+	CP	1
+	PUSH	DE
+	CALL	NZ,LOADER
+	POP	DE
+	JP	DUSER
+;
+;
+;
+ROMCODE:
+	DB	'FW17'
+	RST	010H
+	DB	084H			; write string, 4 characters
+	DB	'Disc'
+	RET
+;
+; This block of code copied to high memory
+; to locations with the same symbol names, without the leading ?
+;
+?CNFG:	CALL	DISCROM
+	DW	EXCNFG
+	RET
+;
+?READ:	PUSH	HL
+	CALL	DISCROM
+	DW	EXRD
+	POP	HL
+	RET
+;
+?WRITE:	PUSH	HL
+	CALL	DISCROM
+	DW	EXWR
+	POP	HL
+	RET
+;
+?BBLKRD:
+	CALL	DISCROM
+	DW	BLKRD
+	RET
+;
+?INITLZ:
+	CALL	DISCROM
+	DW	INITLZ
+	RET
+;
+	CALL	DISCROM
+	DW	CCPSTART
+	RET
+	NOP
+;
+; Switch in the SDX ROM
+;
+?SWROM:	LD	A,070H			; the actual value will be patched
+?SWPAGE:
+	LD	(PAGE),A
+	OUT	(000H),A
+	RET
+;
+; Return address on stack points to the CALL address.
+; Return address is adjusted and the subroutine in ROM is called.
+; DE and BC preserved. Entry value of A preserved.
+;
+?DISCROM:
+	PUSH	HL
+	POP	IY
+	POP	HL
+	PUSH	DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	EX	(SP),HL
+	EX	DE,HL
+	PUSH	HL
+	LD	L,A
+	LD	A,(PAGE)
+	LD	H,A
+	CALL	SWROM
+	LD	A,L
+	EX	(SP),HL
+	PUSH	HL
+	LD	HL,CALSUB
+	EX	(SP),HL
+	PUSH	HL
+	PUSH	IY
+	POP	HL
+	RET
+;
+?CALSUB:
+	POP	HL
+	PUSH	AF
+	LD	A,H
+	CALL	SWPAGE
+	POP	AF
+	RET
+;
+; PAGE0 calls a specified routine in ROM page 0.
+; Byte following the call to PAGE0 gives offset into jump table.
+; Switches to ROM page 0, calls routine, on return switches back to SDX ROM
+;
+?PAGE0:	EX	AF,AF'
+	EX	(SP),HL
+	LD	A,(HL)
+	INC	HL
+	EX	(SP),HL
+	PUSH	HL
+	LD	HL,PAGEX
+	EX	(SP),HL
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	LD	C,A
+	LD	B,0
+	EX	AF,AF'
+	LD	HL,JPTABLE
+	ADD	HL,BC
+	ADD	HL,BC
+	RST	008H			; DEHL
+	EX	DE,HL
+	POP	BC
+	POP	DE
+	CALL	SWITCH0
+	EX	(SP),HL
+	RET
+;
+?PAGEX:	PUSH	AF
+	CALL	SWROM
+	POP	AF
+;
+?SPARE:	RET
+;
+?JPTABLE:
+	DW	AE
+	DW	EVALAB
+	DW	EVALSE
+	DW	FIND1$
+	DW	GETINP
+	DW	GOTMIN1
+	DW	INT
+	DW	SLOAD1
+	DW	STR$
+	DW	ADJVAL
+	DW	GETRST
+	DW	SGOTO
+;
+?RETBASIC:
+	LD	A,0
+	CALL	SWPAGE
+	JP	BASIC2
+;
+; DPB
+;
+?PBASE:
+;
+	IFT	DRVB03
+	DB	003H			; type code
+	DW	26			; sectors per track
+	DB	4			; block shift
+	DB	15			; block mask
+	DB	1			; extent mask
+	DW	155			; num blocks - 1
+	DW	63			; num directory entries - 1
+	DB	080H			; alloc bitmap 1
+	DB	000H			; alloc bitmap 2
+	DW	16			; check vector size
+	DW	2			; reserved tracks
+	ENDIF
+;
+	IFT	DRVB07
+	DB	007H			; type code
+	DW	26			; sectors per track
+	DB	4			; block shift
+	DB	15			; block mask
+	DB	1			; extent mask
+	DW	314			; num blocks - 1
+	DW	127			; num directory entries - 1
+	DB	0C0H			; alloc bitmap 1
+	DB	000H			; alloc bitmap 2
+	DW	32			; check vector size
+	DW	2			; reserved tracks
+	ENDIF
+;
+	IFT	DRVB18
+	DB	018H			; type code
+	DW	26			; sectors per track
+	DB	5			; block shift
+	DB	31			; block mask
+	DB	1			; extent mask
+	DW	2045			; num blocks - 1
+	DW	511			; num directory entries - 1
+	DB	0F0H			; alloc bitmap 1
+	DB	000H			; alloc bitmap 2
+	DW	128			; check vector size
+	DW	2			; reserved tracks
+	ENDIF
+;
+	IFT	DRVF51
+	DB	051H			; type code
+	DW	26			; sectors per track
+	DB	4			; block shift
+	DB	15			; block mask
+	DB	1			; extent mask
+	DW	251			; num blocks - 1
+	DW	127			; num directory entries - 1
+	DB	0C0H			; alloc bitmap 1
+	DB	000H			; alloc bitmap 2
+	DW	0			; check vector size
+	DW	2			; reserved tracks
+	ENDIF
+;
+	IFT	DRVF52
+	DB	052H			; type code
+	DW	26			; sectors per track
+	DB	4			; block shift
+	DB	15			; block mask
+	DB	1			; extent mask
+	DW	155			; num blocks - 1
+	DW	63			; num directory entries - 1
+	DB	080H			; alloc bitmap 1
+	DB	000H			; alloc bitmap 2
+	DW	0			; check vector size
+	DW	2			; reserved tracks
+	ENDIF
+;
+?PEND:	DB	0FFH
+;
+END

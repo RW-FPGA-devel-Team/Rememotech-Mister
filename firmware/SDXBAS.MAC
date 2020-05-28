@@ -1,0 +1,1899 @@
+TITLE	SDXBAS	SDX basic commands
+
+; This is a reconstruction of the source for the SDX ROM.
+; A SDX ROM was disassembled using BE and BEZ80.
+; Symbols were taken from a PDF of a printed listing of the ROM.
+; This was post-processed using a custom script, to make it more M80-like.
+; Finally, salient text in the PDF was transcribed to this source.
+
+.Z80
+CSEG
+
+	INCLUDE	BDOS.INC
+	INCLUDE	BASIC.INC
+	INCLUDE	SYSVARS.INC
+	INCLUDE	SDXCONF.INC
+	INCLUDE	SDXHIGH.INC
+
+	EXT	FORMAT,STAT,EXWR,BLKRD
+;
+;
+;
+FILEADDR:
+	LD	HL,DMA_DEF+1
+	LD	DE,32
+	AND	A
+	RET	Z
+	LD	B,A
+FILEA2:	ADD	HL,DE
+	DJNZ	FILEA2
+	RET
+;
+; USER QUIT
+; Load NCPM.COM to 08000H and execute 08003H
+; or, if this fails, jump to BASIC
+;
+QUIT:	LD	DE,CHNL4
+	PUSH	DE
+	LD	HL,DATA
+	LD	BC,11
+	LDIR
+	POP	DE
+	LD	IX,CHNL5
+	CALL	GETFNAM
+	CALL	FOPEN
+	JP	Z,BASICS
+QUIT1:	LD	(IX+027H),5
+	CALL	STARW
+	LD	HL,08000H
+	CALL	RAWREAD
+	JP	08003H
+;
+DATA:	DB	'"NCPM.COM"',0FFH
+;
+; Set DMA
+;
+SETDMAX:
+	LD	DE,DMA_DEF
+	PUSH	HL
+	LD	C,SETDMA
+	CALL	SDXBDOS
+	POP	HL
+	RET
+;
+; USER DIR
+;
+	DB	1
+;
+DIR:	CALL	USRCHK
+	INC	DE
+	LD	IX,CHNL5
+	LD	A,(DE)
+	CP	0FFH
+	JR	NZ,DIR$
+	CALL	GETNUL
+	JR	DIR0
+DIR$:	CALL	GETFNAM
+DIR0:	DEC	DE
+	PUSH	DE
+	CALL	SETDMAX
+	EX	DE,HL
+	LD	C,SFF
+	CALL	DOS
+	CP	0FFH
+	JR	Z,NOFILE
+DIR1:	CALL	FILEADDR
+	LD	B,8
+	CALL	PRNTCHR$
+	LD	A,'.'
+	CALL	PRINTX
+	LD	B,3
+	CALL	PRNTCHR$
+DIRPAD:	LD	A,' '
+	CALL	PRINTX
+	LD	C,SFN
+	CALL	DOS
+	CP	0FFH
+	JR	NZ,DIR1
+DIR2:	RST	010H
+	DB	02DH,00AH		; write immediate CR,LF
+	POP	DE
+	RET
+;
+NOFILE::
+	RST	010H
+	DB	087H			; write string, 7 characters
+	DB	'No File'
+	JR	DIR2
+;
+; USER ERASE
+;
+	RET
+	DB	1
+;
+ERASE:	CALL	USRCHK
+	INC	DE
+	LD	IX,CHNL5
+	CALL	GETFNAM
+	DEC	DE
+	PUSH	DE
+	LD	A,'?'
+	CALL	TESTCHR
+	JR	NZ,ERASE2
+	RST	010H
+	DB	08AH			; write string, 10 characters
+	DB	'All files?'
+ERASE1:	CALL	KBD
+	JR	Z,ERASE1
+	CP	3
+	JR	Z,DIR2
+	RES	5,A
+	CP	'Y'
+	JR	NZ,DIR2
+ERASE2:	LD	C,DELFIL
+	CALL	DOS
+	JR	DIR2
+PUT$:	LD	HL,CHNL5+9
+	LD	B,3
+PUT$1:	LD	A,'$'
+	LD	(HL),A
+	INC	HL
+	DJNZ	PUT$1
+	RET
+;
+;
+;
+MOVNAM:	EXX
+	LD	DE,CHNL5+16
+	LD	HL,CHNL5
+	LD	BC,12
+	LDIR
+	EXX
+	RET
+;
+;
+;
+SETREG:	LD	DE,USERSAV
+	LD	HL,CHNL5+9
+	LD	BC,3
+	RET
+;
+;
+;
+LOADTYP:
+	EXX
+	CALL	SETREG
+	EX	DE,HL
+	LDIR
+	EXX
+	RET
+;
+;
+;
+SAVETYP:
+	EXX
+	CALL	SETREG
+	LDIR
+	EXX
+	RET
+;
+; USER SAVE
+;
+	DB	1
+;
+DSAVE:	LD	IX,CHNL5
+	INC	DE
+	CALL	GETUFN
+	DEC	DE
+	LD	(DESAVE),DE
+	CALL	SAVETYP
+	CALL	PUT$
+	LD	(IX+027H),6
+	CALL	OPENC
+;
+; Save system variables
+;
+DBSTKLIM:
+	LD	HL,0F8F2H		; bottom of system variables
+	LD	B,H
+	LD	C,L
+	LD	HL,(SYSTOP)
+	CALL	CALSIZ
+	CALL	PUTHL
+	PUSH	HL
+	LD	H,B
+	LD	L,C
+	CALL	PUTHL
+	POP	HL
+	CALL	STRPUT
+	CALL	SETVA
+PUTNXT:	LD	A,(HL)
+	PUSH	DE
+	CALL	BPUT
+	POP	DE
+	PUSH	IX
+	CALL	INCLRA
+	POP	IX
+	CALL	DECVA
+	JR	NZ,PUTNXT
+	LD	HL,(CALCBOT)
+	LD	BC,(VARNAM)
+	CALL	CALSIZ
+	CALL	STRPUT
+	CALL	CLOSEA
+SAVEC:	CALL	LOADTYP
+	CALL	KILL1
+	CALL	MOVNAM
+	CALL	PUT$
+	JP	REN2
+; put the contents of HL
+PUTHL:	LD	A,L
+	CALL	BPUT
+	LD	A,H
+	JP	BPUT
+; start of data in BC, end in HL, returns with length in BC and start in HL
+CALSIZ:	PUSH	BC
+	AND	A
+	SBC	HL,BC
+	LD	B,H
+	LD	C,L
+	POP	HL
+	RET
+;
+; USER LOAD
+;
+	DB	1
+;
+DLOAD:	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	DEC	DE
+AUTORUN:
+	LD	IX,CHNL5
+	EXX
+	LD	HL,USER-4
+	LD	DE,USERSAV
+	LD	BC,7
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	LDIR
+	EXX
+	LD	(IX+027H),5
+	CALL	SIOPEN
+	CALL	STARW
+	LD	HL,LSTPG
+	LD	A,(HL)
+	PUSH	AF
+	PUSH	HL
+	CALL	GETBC
+	LD	H,B
+	LD	L,C
+	CALL	GETBC
+	CALL	READIN
+	POP	HL
+	LD	B,(HL)
+	POP	AF
+	LD	(HL),A
+	PUSH	BC
+	CALL	SETVA
+LDNXT:	PUSH	DE
+	CALL	BGET
+	POP	DE
+	LD	(HL),A
+	LD	A,(STKLIM+1)
+	CP	H
+	JR	NC,LDNX1
+	RST	028H
+	DB	023H			; "No space"
+LDNX1:	PUSH	IX
+	CALL	INCLRA
+	POP	IX
+	CALL	DECVA
+	JR	NZ,LDNXT
+	POP	BC
+	CALL	PAGE0
+	DB	9			; = ADJVAL
+	LD	HL,(CALCBOT)
+	LD	BC,(VARNAM)
+	CALL	CALSIZ
+	CALL	READIN
+	POP	DE
+	POP	HL
+	POP	BC
+	LDIR
+; [[[
+	LD	SP,(SSTACK)
+	CALL	PAGE0
+	DB	7			; = SLOAD1
+	RET
+					; ]]] Note this logic differs
+					; from whats in the SDX listing PDF
+;
+; Read a number of bytes stored in the first two bytes past the file pointer,
+; to an address stored in the second two bytes after the file pointer.
+;
+READIN:	LD	A,B
+	OR	C
+	RET	Z
+	CALL	BGET
+	PUSH	BC
+	PUSH	HL
+	LD	BC,PAGE
+	OR	A
+	SBC	HL,BC
+	POP	HL
+	POP	BC
+	JR	Z,READI1
+	LD	(HL),A
+READI1:	INC	HL
+	DEC	BC
+	JR	READIN
+;
+; Routine to read in BC
+; (original source said HL for some reason)
+;
+GETBC:	CALL	BGET
+	LD	C,A
+	CALL	BGET
+	LD	B,A
+	RET
+;
+; (B,D,E) = size of the program, (C,H,L) = start of program
+;
+SETVA:	LD	DE,(ARRTOP)
+	LD	A,(ARRTOP+00002H)
+	LD	B,A
+	LD	HL,(VALZERO)
+	XOR	A
+SRAMPG:	AND	00FH
+	LD	C,A
+	LD	A,(PAGE)
+	AND	0F0H
+	OR	C
+	LD	(PAGE),A
+	OUT	(000H),A
+	RET
+;
+; Z set when VA decremented to 0
+;
+DECVA:	DEC	DE
+	LD	A,D
+	OR	E
+	RET	NZ
+	OR	B
+	RET	Z
+	DEC	B
+	OR	A
+	RET
+;
+; Increment LRA (in, C,H,L), select page
+;
+INCLRA:	LD	A,C
+	INC	HL
+	LD	IX,LSTPG
+	CP	(IX)
+	RET	Z
+	PUSH	DE
+	LD	DE,04000H
+	ADD	HL,DE
+	JR	C,INCL1
+	SBC	HL,DE
+	POP	DE
+	RET
+INCL1:	INC	A
+	ADD	HL,DE
+	CP	(IX)
+	JR	NZ,INCL2
+	ADD	HL,DE
+INCL2:	POP	DE
+	JR	SRAMPG
+;
+; USER OPEN
+;
+	; is there supposed to be a RET here?
+	DB	7,1,',',1,',',2,'#'
+;
+OPEN:	CALL	USRCHK
+	INC	DE
+	CALL	GETCHAN
+	OR	(IX+027H)
+	JP	NZ,CHANERR
+	CALL	GETUFN
+	CALL	GETTYPE
+	LD	(IX+027H),A
+	CALL	TESTRND
+	JR	Z,OPEN2
+	LD	A,(DE)
+	CP	','
+	JP	NZ,ERROR
+	INC	DE
+	CALL	GETNXT
+	LD	(IX+025H),C
+	LD	(IX+026H),B
+	LD	C,CFSIZE
+	CALL	DOS
+	LD	A,(IX+021H)
+	OR	(IX+022H)
+	JR	Z,SOPEN
+	CALL	DECRR
+	CALL	SWOP
+	JR	SOPEN
+OPEN2:	DEC	DE
+	BIT	0,A
+	JR	NZ,SIOPEN
+SOPEN:	CALL	FOPEN
+	JR	NZ,OLD
+OPENC:	LD	C,MAKFIL
+	CALL	DOS
+	INC	A
+	RET	NZ
+	RST	028H
+	DB	023H			; "No space"
+OLD:	LD	C,CFSIZE
+	CALL	DOS
+	CALL	DECRR
+	CALL	STARW
+	BIT	7,(IX+027H)
+	RET	NZ
+OK3:	LD	BC,00080H
+	LD	HL,DMA_DEF
+	LD	A,01AH
+	CPIR
+	LD	A,07FH
+	SUB	C
+	LD	(IX+024H),A
+	INC	A
+	RET	P			; return if ^Z found
+	CALL	INCRR
+	LD	(IX+024H),000H
+	RET
+;
+; Sequential input file open routine
+;
+SIOPEN:	CALL	FOPEN
+	RET	NZ
+;
+; File not found error
+;
+NFERR:	RST	028H
+	DB	026H			; "Undefined"
+;
+; File open
+;
+FOPEN:	LD	C,OPENF
+	CALL	DOS
+	INC	A
+	RET
+;
+; USER CLOSE
+; On entry, DE->channelnumber
+; Syntax: USER CLOSE #channelnumber
+;
+	DB	2,'#'
+;
+CLOSE:	CALL	USRCHK
+	INC	DE
+	LD	A,(DE)
+	CP	0FFH
+	JR	Z,CLOSALL
+	CP	':'
+	JR	Z,CLOSALL
+	CALL	GETCHAN
+CLOSEB:	LD	A,(IX+027H)
+	BIT	0,A
+	JR	NZ,FCLOS2
+	OR	A
+	RET	Z
+FCLOSE:	CALL	STARW
+	LD	A,(IX+024H)
+	AND	A
+	JR	Z,FCLOS2
+	CALL	CALPOS
+FCLOS1:	LD	(HL),01AH
+	INC	HL
+	INC	A
+	JP	P,FCLOS1
+CLOSEA:	CALL	STOPRW
+FCLOS2:	LD	(IX+027H),000H
+	LD	C,CLOSEF
+	JP	DOS
+;
+; Close all channels
+;
+CLOSALL:
+	LD	DE,40
+	LD	B,4			; original source has a comment which
+					; says ";5!!!!" - worrying
+	LD	IX,CHNL1
+CLSA1:	PUSH	BC
+	CALL	CLOSEB
+	POP	BC
+	ADD	IX,DE
+	DJNZ	CLSA1
+	RET
+;
+; USER KILL
+;
+	DB	2,'#'
+;
+KILL:	CALL	USRCHK
+	INC	DE
+	CALL	GETCHAN
+	CALL	FCLOS2
+KILL1:	LD	C,DELFIL
+	JP	DOS
+;
+;
+;
+RAWREAD:
+	CALL	BGET
+	LD	(HL),A
+	INC	BC
+	INC	HL
+	BIT	7,(IX+027H)
+	JR	Z,RAWREAD
+	RET
+;
+; USER TYPE
+; Syntax: USER TYPE "filename"
+;
+	DB	1
+;
+ETYPE:	CALL	USRCHK
+	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	DEC	DE
+	CALL	SIOPEN
+	CALL	STARW
+TYPE1:	CALL	BGET
+	BIT	7,(IX+027H)
+	RET	NZ
+	CALL	PRINTX
+	CALL	BREAKMON
+	JR	Z,TYPE1
+	RET
+;
+; USER REN
+; Syntax: USER REN "new"="old"
+;
+	RET				; is this necessary?
+	DB	1,0D3H,1
+;
+REN:	CALL	USRCHK
+	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	LD	C,SFF
+	CALL	DOS
+	CP	0FFH
+	JR	Z,REN0
+	RST	028H
+	DB	030H			; "Params"
+REN0:	PUSH	DE
+	LD	DE,CHNL5+16
+	LD	HL,CHNL5
+	LD	BC,12
+	LDIR
+	LD	HL,CHNL5+1
+	LD	B,11
+REN1:	LD	(HL),' '
+	INC	HL
+	DJNZ	REN1
+	POP	DE
+	LD	HL,CHNL5
+	CALL	GETFNO
+	DEC	DE
+	JP	Z,FNAMERR
+REN2:	LD	C,RENFIL
+	CALL	DOS
+	INC	A
+	RET	NZ
+	RST	028H
+	DB	026H			; "Undefined"
+;
+; USER RUN
+; Syntax: USER RUN "filename.run"
+;
+	RET
+	DB	7,1
+;
+RUN:	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	LD	(IX+027H),005H
+	DEC	DE
+	CALL	SIOPEN
+	CALL	STARW
+	CALL	GETBC
+	LD	H,B
+	LD	L,C
+	PUSH	HL
+	CALL	GETBC
+	CALL	READIN
+	POP	HL
+	PUSH	DE
+	CALL	JPHL
+	POP	DE
+	RET
+;
+; USER RECORD
+; Syntax: USER RECORD #channelnumber,recordnumber
+;
+	RET	; is this redundant?
+	DB	2,',',2,'#'
+;
+REC:	CALL	USRCHK
+	INC	DE
+	CALL	GETCHAN
+	CALL	TESTRND
+	RET	Z
+	PUSH	IX
+	CALL	GETREC
+	POP	IX
+	PUSH	DE
+;
+; Set up ex-FCB for random disk access.
+;
+SETREC:	RES	7,(IX+027H)
+	RES	6,(IX+027H)
+	LD	D,A
+	XOR	A
+	LD	H,A
+	LD	L,A
+	LD	E,(IX+026H)
+	CALL	MULT
+	LD	E,(IX+025H)
+	CALL	MULT
+	LD	(IX+021H),H
+	LD	(IX+022H),A
+	SRL	L
+	LD	(IX+024H),L
+	POP	DE
+	CALL	STEST
+	RET	NC
+	SET	7,(IX+027H)
+	RET
+;
+; Multiply DBC*E, adding the result to AHL
+; Error if AHL > 256*64K, ie: 16M
+; NB the result is multiplied by 2.
+;
+MULT:	EX	AF,AF'
+	LD	A,008H
+MULT1:	EX	AF,AF'
+	SLA	E
+	JR	NC,SKIP
+	ADD	HL,BC
+	ADC	A,D
+SKIP:	ADD	HL,HL
+	RLA
+	JP	C,TOOBIG
+	EX	AF,AF'
+	DEC	A
+	JR	NZ,MULT1
+	EX	AF,AF'
+	RET
+;
+; USER INPUT
+; This is the line input variant.
+; This ignores "," characters in the input line
+;
+	DB	8,',',2,'#',098H
+;
+DLINPUT:
+	INC	DE
+	LD	A,0FFH
+	JR	DINPT0
+;
+; USER DINPUT
+; Syntax: USER DINPUT #channelnumber,listofvariables
+;
+	RET
+	DB	8,',',2,'#'
+;
+DINPUT:	XOR	A
+DINPT0:	LD	(LINPUT),A
+	INC	DE
+	CALL	LINE$
+	CALL	GETCHAN
+	BIT	0,(IX+027H)
+	JR	Z,ERROR
+	CALL	STARW
+	CALL	TESTRND
+	JR	NZ,RANDIN
+DINPT1:	LD	A,(DE)
+	CP	0FFH
+	RET	Z
+	CP	','
+	JR	NZ,DINPT2
+	INC	DE
+DINPT2:	LD	HL,(CALCST)
+	CALL	STRGET
+DINPT3:	LD	(HL),C
+	INC	HL
+	LD	(HL),B
+	INC	HL
+	LD	(CALCST),HL
+DINPT4:	PUSH	IX
+	PUSH	DE
+	EX	DE,HL
+	CALL	PAGE0
+	NOP
+	POP	DE
+	CALL	PAGE0
+	INC	B
+	POP	IX
+	JR	Z,DINPT1
+	RST	028H
+	DB	036H			; "Not numeric"
+;
+;
+;
+ERROR:	RST	028H
+	DB	03BH			; "Mismatch"
+;
+;
+;
+RANDIN:	LD	HL,(CALCST)
+	EX	DE,HL
+	BIT	6,(HL)
+	EX	DE,HL
+	JP	NZ,ERROR
+	LD	B,(IX+026H)
+	LD	C,(IX+025H)
+	PUSH	BC
+	CALL	READIN
+	POP	BC
+	LD	(HL),C
+	INC	HL
+	LD	(HL),B
+	INC	HL
+	LD	(CALCST),HL
+	CALL	PAGE0
+	DB	4			; GETINP
+	RET
+;
+; USER DPRINT
+; Syntax: USER DPRINT #channelnumber,listofvariables
+;
+	RET	; is this redundant?
+	DB	3,',',2,'#'
+;
+DPRINT:	INC	DE
+	CALL	LINE$
+	CALL	GETCHAN
+	LD	(IXTEMP),IX
+	CALL	STARW
+	CALL	STEST
+	JR	NC,DPRINZ
+	CALL	SWOP
+DPRINZ:	BIT	1,(IX+027H)
+	JR	Z,ERROR
+	CALL	TESTRND
+	JR	NZ,RNDOUT
+	DEC	DE
+DPRIN0:	INC	DE
+DPRIN1:	LD	A,(DE)
+	CP	0FFH
+	JR	NZ,DPRIN2
+	DEC	DE
+	LD	A,(DE)
+	INC	DE
+	CP	';'
+	JP	Z,STOPRW
+	CALL	WRCRLF
+	JP	STOPRW
+DPRIN2:	CP	';'
+	JR	Z,DPRIN0
+	CP	','
+	JR	NZ,DPRIN3
+	LD	IX,(IXTEMP)
+	CALL	BPUT
+	JR	DPRIN0
+WRCRLF:	LD	IX,(IXTEMP)
+	LD	A,00DH
+	CALL	BPUT
+	LD	A,00AH
+	JP	BPUT
+DPRIN3:	PUSH	DE
+	EX	DE,HL
+	CALL	PAGE0
+	DB	0			; AE
+	POP	DE
+	JR	Z,DPRIN4
+	CALL	PAGE0
+	DB	2			; EVALSE
+	JR	DPRIN5
+DPRIN4:	CALL	PAGE0
+	DB	1			; EVALAB
+	PUSH	DE
+	CALL	PAGE0
+	DB	8			; STR$
+	POP	DE
+DPRIN5:	PUSH	DE
+	CALL	PAGE0
+	DB	3			; FIND1$
+	LD	(CALCST),DE
+	EX	DE,HL
+	LD	IX,(IXTEMP)
+DPRIN6:	CALL	STRPUT
+	POP	DE
+	JR	DPRIN1
+;
+; If random access file then only strings allowed,
+; whose length must be less than or equal to the length of the record.
+;
+RNDOUT:	CALL	PAGE0
+	DB	2			; EVALSE
+	PUSH	DE
+	CALL	PAGE0
+	DB	3			; FIND1$
+	LD	(CALCST),DE
+	LD	IX,(IXTEMP)
+	LD	H,(IX+026H)
+	LD	L,(IX+025H)
+	OR	A
+	SBC	HL,BC
+	PUSH	HL
+	JP	C,TOOBIG
+	EX	DE,HL
+	CALL	STRPUT
+	POP	BC
+PUT0:	LD	A,B
+	OR	C
+	JR	Z,PUT01
+	XOR	A
+	CALL	BPUT
+	DEC	BC
+	JR	PUT0
+PUT01:	POP	DE
+	LD	A,(DE)
+	CP	0FFH
+	JP	Z,STOPRW
+	RST	028H
+	DB	03BH			; "Mismatch"
+;
+; USER READ
+; Syntax: USER READ "file",baseaddress
+;
+	RET
+	DB	2,',',1
+;
+BREAD:	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	LD	(IX+027H),005H
+	CALL	SIOPEN
+	CALL	STARW
+	CALL	GETNXT
+	LD	H,B
+	LD	L,C
+	JP	RAWREAD
+;
+; USER WRITE
+; Syntax: USER WRITE "file",baseaddress,length
+;
+	RET
+	DB	2,',',2,',',1
+;
+BWRITE:	CALL	USRCHK
+	INC	DE
+	LD	IX,CHNL5
+	CALL	GETUFN
+	CALL	KILL1
+	CALL	OPENC
+	CALL	GETNXT
+	PUSH	BC
+	CALL	GETNXT
+	POP	HL
+	CALL	STRPUT
+	JP	CLOSEA
+;
+; Note: STARW must have been called before IO to a different file.
+; Routine to write away one byte to a file whose ex-FCB is pointed to by IX.
+; BC, DE and HL preserved.
+;
+BPUT:	PUSH	BC
+	PUSH	HL
+	CALL	CALPOS
+	LD	(HL),A
+	INC	(IX+024H)
+	JP	P,BPUT1
+	LD	C,WRAN
+	CALL	DOS
+	OR	A
+	JR	Z,BPUTQ
+	RST	028H
+	DB	023H			; "No space"
+BPUTQ:	CALL	INCRR
+	CALL	STARW0
+	LD	(IX+024H),000H
+	CALL	STEST
+	JR	NC,BPUT1
+	CALL	SWOP
+BPUT1:	POP	HL
+	POP	BC
+	RET
+;
+; Routine to write out BC bytes, starting at HL, to ex-FCB at IX.
+;
+STRPUT:	LD	A,B
+	OR	C
+	RET	Z
+	LD	A,(HL)
+	INC	HL
+	DEC	BC
+	CALL	BPUT
+	JR	STRPUT
+;
+; Get one byte from current disk file
+;
+BGET:	PUSH	BC
+	PUSH	HL
+	BIT	7,(IX+027H)
+	JR	Z,BGET1
+	RST	028H
+	DB	03FH			; "No data"
+BGET1:	CALL	CALPOS
+	LD	A,(HL)
+	PUSH	AF
+	INC	(IX+024H)
+	JP	P,BGET2
+	PUSH	HL
+	CALL	INCRR
+	POP	HL
+	LD	C,RRAN
+	CALL	DOS
+	LD	(IX+024H),000H
+	OR	A
+	JR	NZ,BGET4
+BGET2:	BIT	2,(IX+027H)
+	JR	NZ,BGET3
+	INC	HL
+	LD	A,(HL)
+	CP	01AH
+	JR	Z,BGET4
+BGET3:	POP	AF
+	POP	HL
+	POP	BC
+	RET
+BGET4:	SET	7,(IX+027H)
+	JR	BGET3
+;
+;
+;
+STRGET:	LD	BC,0
+STRGT1:	CALL	BGET
+EOL1:	PUSH	BC
+	LD	BC,(STKLIM)
+	OR	A
+	SBC	HL,BC
+	JR	C,RAWSKIP
+	RST	028H
+	DB	023H			; "No space"
+;
+RAWSKIP:	ADD	HL,BC
+	LD	B,A
+	LD	A,(LINPUT)
+	OR	A
+	LD	A,B
+	POP	BC
+	JR	NZ,STRGT2
+	CP	','
+	RET	Z
+STRGT2:	CP	00DH
+	JR	Z,EOL
+STRGT3:	BIT	7,(IX+027H)
+	RET	NZ
+	LD	(HL),A
+	INC	HL
+	INC	BC
+	JR	STRGT1
+EOL:	CALL	BGET
+	CP	00AH
+	RET	Z
+	LD	(HL),00DH
+	INC	BC
+	INC	HL
+	JR	EOL1
+;
+; Make BDOS call, using FCB at IX.
+; Preserve IX, HL, DE.
+;
+DOS:	PUSH	DE
+	PUSH	HL
+	PUSH	IX
+	POP	DE
+	PUSH	DE
+	CALL	SDXBDOS
+	POP	IX
+	POP	HL
+	POP	DE
+	RET
+;
+; Calculate absolute address in DMA
+;
+CALPOS:	PUSH	DE
+	LD	HL,DMA_DEF
+	LD	D,0
+	LD	E,(IX+024H)
+	ADD	HL,DE
+	POP	DE
+	RET
+;
+; Increment random record pointer
+;
+INCRR:	LD	L,(IX+021H)
+	LD	H,(IX+022H)
+	INC	HL
+	LD	(IX+021H),L
+	LD	(IX+022H),H
+	RET
+;
+; Decrement random record pointer
+;
+DECRR:	LD	L,(IX+021H)
+	LD	H,(IX+022H)
+	DEC	HL
+	LD	(IX+021H),L
+	LD	(IX+022H),H
+	RET
+;
+; This routine must be called before I/O to a particular file.
+; It sets up the DMA, fetches the relevant record from the disk to load the DMA.
+;
+STARW:	PUSH	DE
+	CALL	SETDMAX
+	CALL	STARW0
+	POP	DE
+	RET
+STARW0:	LD	B,080H
+	LD	HL,DMA_DEF
+STARW2:	LD	(HL),0
+	INC	HL
+	DJNZ	STARW2
+	LD	C,RRAN
+	JP	DOS
+;
+; This mus be called when a particular file has finished I/O.
+;
+STOPRW:	LD	A,(IX+024H)
+	OR	A
+	RET	Z
+	LD	C,WRAN
+	CALL	DOS
+	RET
+;
+; Reset bit 6 of 1st bytes of string variables. DE -> # on entry
+;
+LINE$:	PUSH	DE
+	PUSH	HL
+	INC	DE
+	CALL	SNEXT
+	JR	Z,XLINE
+LOOP1:	PUSH	DE
+	POP	HL
+	INC	HL
+LOOP2:	CALL	SNEXT
+	JR	Z,XLINE
+	CP	'$'
+	JR	Z,LOOP3
+	CP	'"'
+	JR	Z,LOOP4
+	CALL	ALPHNM
+	JR	NZ,LOOP1
+	JR	LOOP2
+LOOP3:	RES	6,(HL)
+	JR	LOOP2
+LOOP4:	CALL	SNEXT
+	JR	Z,XLINE
+	CP	'"'
+	JR	NZ,LOOP4
+	JR	LOOP2
+XLINE:	POP	HL
+	POP	DE
+	RET
+SNEXT:	INC	DE
+	LD	A,(DE)
+	CP	0FFH
+	RET
+;
+; Is it alphanumeric
+;
+ALPHNM:	CP	01BH
+	JR	C,ZSET
+	CP	'0'
+	JR	C,NZSET
+	CP	'9'+1
+	JR	C,ZSET
+	CP	'A'
+	JR	C,NZSET
+	CP	'Z'+1
+	JR	NC,NZSET
+ZSET:	XOR	A
+	RET
+NZSET:	LD	A,1
+	OR	A
+	RET
+;
+; --- Disc basic utility routines
+;
+
+;
+; print B characters from HL onwards
+;
+PRNTCHR$:
+	LD	A,(HL)
+	CALL	PRINTX
+	INC	HL
+	DJNZ	PRNTCHR$
+	RET
+;
+; On entry DE-> #channelnumber
+; On exit IX->CHNLx
+; If channelnumber out of range, then error
+;
+GETCHAN:
+	INC	DE
+	CALL	GETNXT
+GETCH0:	LD	A,B
+	AND	A
+GETCH1:	JR	NZ,CHANERR
+	OR	C
+	JR	Z,CHANERR
+	CP	005H
+	JR	NC,CHANERR
+GETCH2:	LD	BC,40
+	LD	IX,CHNL1-40
+GETCH3:	ADD	IX,BC
+	DEC	A
+	JR	NZ,GETCH3
+	RET
+CHANERR:
+	JP	TOOBIG
+;
+; USER EOF
+; Syntax: USER EOF #channelnumber,linenumber (according to original source)
+;
+	; where are the syntax bytes?
+;
+EOF:	CALL	USRCHK
+	INC	DE
+	CALL	GETCHAN
+	JR	NZ,CHANERR
+	BIT	7,(IX+027H)
+	RET	Z
+	CALL	PAGE0
+	DB	11			; SGOTO
+;
+; Evaluate string expression at DE
+; If valid, initialise FCB at HL.
+; Else if bad filename, error.
+; Preserves HL,IX.
+;
+GETFNAM::
+	PUSH	IX
+	POP	HL
+	CALL	INITFCB
+GETFNO:	PUSH	HL
+	PUSH	HL
+	CALL	PAGE0
+	LD	(BC),A
+	POP	HL
+	INC	DE
+	PUSH	DE
+	PUSH	HL
+	CALL	PAGE0
+	DB	3			; FIND1$
+	LD	(CALCST),DE
+	LD	A,B
+	AND	A
+	JR	NZ,GETCH1
+GETFN1:	POP	HL
+	CALL	PARSE
+	JR	NZ,FNAMERR
+	CALL	TESTSPA
+GETFN2:	CALL	CHKAMB
+	POP	DE
+	POP	IX
+	RET
+;
+;
+;
+GETNUL:	PUSH	IX
+	POP	HL
+	PUSH	HL
+	PUSH	DE
+	CALL	INITFCB
+	CALL	TESTSPA
+	JR	GETFN2
+;
+; Get unambiguous filename
+;
+GETUFN:	CALL	GETFNAM
+	RET	NZ
+FNAMERR:
+	RST	028H
+	DB	030H			; "Params"
+;
+; Returns A=1 if string at DE is "I"
+;
+; Bit  Meaning
+; ---  -------
+; 0    Read enable
+; 1    Write enable
+; 2    Raw data
+; ..
+; 6    Reading unwritten data
+; 7    EOF condition met
+;
+GETTYPE:
+	PUSH	IX
+	CALL	PAGE0
+	LD	(BC),A
+	PUSH	DE
+	CALL	PAGE0
+	DB	3			; FIND1$
+	LD	(CALCST),DE
+	LD	A,B
+	OR	C
+	JR	Z,GETCH1
+GETTY1:	LD	A,(DE)
+	CP	'I'
+	JR	Z,GETTY2
+	INC	C
+	CP	'O'
+	JR	Z,GETTY2
+	INC	C
+	CP	'R'
+	JR	NZ,CHANERR
+GETTY2:	LD	A,C
+	POP	DE
+	POP	IX
+	RET
+;
+GETNXT:	CALL	PAGE0
+	DB	10			; GETRST
+	JR	NZ,TOOBIG
+	RET	NC			; return if not negative
+;
+TOOBIG:	RST	028H
+	DB	022H			; "Out of range"
+;
+; Evaluates the numeric expression at DE as a record number.
+; On exit, ABC = record number if in range, else error.
+;
+GETREC:	CALL	PAGE0
+	DB	1
+	RST	028H
+	DB	081H			; "???"
+	CALL	PAGE0
+	DB	6			; INT, (ACC1) now contains an integer
+	LD	HL,ACC1+3		; high byte mantissa
+	BIT	7,(HL)
+	SET	7,(HL)
+	JR	NZ,TOOBIG		; jump if negative number
+	XOR	A
+	LD	B,A
+	LD	C,A
+	INC	HL			; exponent byte
+	BIT	7,(HL)
+	RES	7,(HL)
+	RET	Z			; return if no = 0
+	PUSH	DE
+	LD	A,24
+	SUB	(HL)			; Z if no shifting necessary
+	JR	C,TOOBIG
+	LD	D,A
+	DEC	HL
+	LD	A,(HL)
+	DEC	HL
+	LD	B,(HL)
+	DEC	HL
+	LD	C,(HL)
+	JR	Z,GETRC2
+GETRC1:	SRL	A			; shift ABC >>= D
+	RR	B
+	RR	C
+	DEC	D
+	JR	NZ,GETRC1
+GETRC2:	POP	DE
+	RET
+;
+; File filename in FCB at HL with spaces and everything else with 0's.
+; Preserves all registers.
+;
+INITFCB:
+	PUSH	BC
+	PUSH	HL
+	LD	(HL),000H
+	LD	B,11
+INITF1:	INC	HL
+	LD	(HL),' '
+	DJNZ	INITF1
+	LD	B,29
+INITF2:	INC	HL
+	LD	(HL),0
+	DJNZ	INITF2
+	POP	HL
+	POP	BC
+	RET
+;
+; Check whether string at DE of length C is a valid filename.
+; If so, copies name into FCB at HL, and returns Z.
+; Else, name not valid, returns NZ.
+; Preserves HL,IX.
+;
+PARSE:	LD	A,C
+	AND	A
+	RET	Z
+	PUSH	HL
+	EX	DE,HL
+	CALL	PARS1
+	POP	HL
+	RET
+PARS1:	PUSH	HL
+	PUSH	BC
+	CALL	GETCHR
+	JR	Z,PARS2
+	CALL	GETCHR
+	CP	':'
+	JR	NZ,PARS2
+	POP	AF
+	EX	(SP),HL
+	LD	A,(HL)
+	CALL	TESTDRV
+	JP	C,FNAMERR
+	LD	(DE),A
+	JR	PARS3
+PARS2:	POP	BC
+PARS3:	POP	HL
+	INC	DE
+	LD	B,8
+PARS4:	LD	A,C
+	AND	A
+	RET	Z
+	CALL	GETCHR
+	CP	' '
+	RET	Z
+	CP	'*'
+	JR	Z,PARS5
+	CP	'.'
+	JR	Z,PARS70
+	LD	(DE),A
+	INC	DE
+	DJNZ	PARS4
+	JR	PARS8
+PARS5:	LD	A,'?'
+PARS6:	LD	(DE),A
+	INC	DE
+	DJNZ	PARS6
+	JR	PARS8
+PARS70:	INC	C
+PARS7:	DEC	HL
+PARS7A:	INC	DE
+	DJNZ	PARS7A
+PARS8:	LD	A,C
+	AND	A
+	RET	Z
+	CALL	GETCHR
+	CP	'.'
+	RET	NZ
+PARS9:	LD	B,3
+PARS10:	LD	A,C
+	AND	A
+	RET	Z
+	CALL	GETCHR
+	CP	' '
+	RET	Z
+	CP	'*'
+	JR	Z,PARS11
+	CP	'.'
+	RET	Z
+	LD	(DE),A
+	INC	DE
+	DJNZ	PARS10
+	XOR	A
+	RET
+PARS11:	LD	A,'?'
+PARS12:	LD	(DE),A
+	INC	DE
+	DJNZ	PARS12
+	RET
+;
+; Is A a valid disk letter, in 'A' to 'P'
+; If invalid, returns C.
+; If valid, returns A in 1 to 16, NC. 
+;
+TESTDRV:
+	CP	'A'
+	RET	C
+	CP	'P'+1
+	CCF
+	RET	C
+	SUB	'A'-1
+	RET
+;
+; A=(HL++); C--
+;
+GETCHR:	LD	A,(HL)
+	INC	HL
+	DEC	C
+	RET
+;
+; Check for ambiguous filename in FCB.
+; Returns Z if ambiguous.
+;
+CHKAMB:	PUSH	BC
+	PUSH	HL
+	LD	A,'?'
+	LD	BC,11
+	INC	HL
+	CPIR
+	POP	HL
+	POP	BC
+	RET
+;
+; Test for occurance of A in 11 bytes starting at HL+1
+;
+TESTCHR:
+	PUSH	HL
+	LD	B,11
+TESTQ1:	INC	HL
+	CP	(HL)
+	JR	NZ,TESTQ2
+	DJNZ	TESTQ1
+TESTQ2:	POP	HL
+	RET
+;
+; Test filename in FCB at HL for all spaces
+; If so, changes them to all '?'s and returns Z, else returns NZ.
+;
+TESTSPA:
+	LD	A,' '
+	CALL	TESTCHR
+	RET	NZ
+	PUSH	HL
+	LD	B,11
+TESTS2:	INC	HL
+	LD	(HL),03FH ; ='?'
+	DJNZ	TESTS2
+	XOR	A
+	POP	HL
+	RET
+;
+; Returns NZ if current file is random
+;
+TESTRND:
+	LD	A,(IX+027H)
+	BIT	0,A
+	RET	Z
+	BIT	1,A
+	RET
+;
+; Returns C if new record bigger than file size
+;
+STEST:	LD	A,(IX+029H)
+	CP	(IX+022H)
+	RET	NZ
+	LD	A,(IX+028H)
+	CP	(IX+021H)
+	RET
+;
+;
+;
+SWOP:	LD	A,(IX+021H)
+	LD	(IX+028H),A
+	LD	A,(IX+022H)
+	LD	(IX+029H),A
+	RET
+;
+; USER COPY
+; Syntax: USER COPY "new"="old"
+;
+	DB	1,0D3H,1
+;
+COPY:	RST	010H
+	DB	04FH			; VS7,CLS
+	CALL	USRCHK
+	INC	DE
+	XOR	A
+	LD	(CHNL3),A
+	LD	IX,CHNL5
+	CALL	GETUFN
+	CALL	SAVETYP
+	CALL	PUT$
+	LD	IX,CHNL4
+	CALL	GETUFN
+	CALL	PORIG
+	CALL	SIOPEN
+	LD	(IX+027H),5
+	CALL	STARW
+	CALL	GET
+	PUSH	BC
+	CALL	PCOPY
+	LD	IX,CHNL5
+	CALL	OPENC
+	LD	(IX+027H),6
+	POP	BC
+	CALL	PUT
+LOOP:	LD	A,(CHNL3)
+	OR	A
+	JR	NZ,DONE
+	CALL	STOPRW
+	CALL	FCLOS2
+	CALL	PORIG
+	CALL	SIOPEN
+	LD	(IX+027H),5
+	CALL	STARW
+	CALL	GET
+	PUSH	BC
+	CALL	PCOPY
+	LD	IX,CHNL5
+	LD	C,OPENF
+	CALL	DOS
+	LD	(IX+027H),6
+	POP	BC
+	CALL	PUT
+	JR	LOOP
+DONE:	CALL	STOPRW
+	CALL	FCLOS2
+	CALL	SAVEC
+	LD	C,RESDSC
+	CALL	SDXBDOS
+	JP	NEWINT3
+;
+;
+;
+PORIG:	LD	IX,CHNL4
+	CALL	DMESS1
+DISCIN:	CALL	DMESS2
+DISC1:	CALL	KBD
+	JR	Z,DISC1
+	CP	003H
+	JR	Z,COPYX
+	RST	010H
+	DB	081H			; write string, 1 character
+	DB	00CH
+	LD	C,RESDSC
+	JP	SDXBDOS
+PCOPY:	LD	IX,CHNL5
+	CALL	DMESS3
+	JR	DISCIN
+COPYX:	LD	C,RESDSC
+	CALL	SDXBDOS
+	JP	NEWINT3
+;
+DMESS1:	RST	010H
+	DB	09AH			; write string, 26 characters
+	DB	00CH,'Insert Source Disc.......'
+	RET
+;
+DMESS2:	RST	010H
+	DB	08BH			; write string, 11 characters
+	DB	'Press a key'
+	RET
+;
+DMESS3:	RST	010H
+	DB	09AH			; write string, 26 characters
+	DB	00CH,'Insert Destination Disc..'
+	RET
+;
+; Get block from disk. BC returns with number of bytes loaded
+; (FLAG aka CHNL3) <> 0 if EOF reached
+;
+GET:	PUSH	DE
+	LD	BC,04000H
+	LD	IX,CHNL4
+	LD	HL,08000H
+GET1:	LD	A,B
+	OR	C
+	JR	Z,GET3
+	CALL	BGET
+	BIT	7,(IX+027H)
+	JR	NZ,GET2
+	LD	(HL),A
+	INC	HL
+	DEC	BC
+	JR	GET1
+GET2:	LD	A,0FFH
+	LD	(CHNL3),A
+	PUSH	BC
+	CALL	FCLOS2
+	POP	BC
+GET3:	LD	HL,04000H
+	OR	A
+	SBC	HL,BC
+	LD	B,H
+	LD	C,L
+	POP	DE
+	RET
+;
+;
+;
+PUT:	LD	IX,CHNL5
+	LD	HL,08000H
+DPUT:	LD	A,B
+	OR	C
+	RET	Z
+	LD	A,(HL)
+	INC	HL
+	DEC	BC
+	PUSH	BC
+	PUSH	HL
+	CALL	CALPOS
+	LD	(HL),A
+	INC	(IX+024H)
+	JP	P,DPUT1
+	LD	C,WRAN
+	CALL	DOS
+	INC	A
+	JR	NZ,DPUTQ
+	RST	028H
+	DB	023H			; "No space"
+DPUTQ:	CALL	INCRR
+	LD	(IX+024H),0
+	CALL	STEST
+	JR	NC,DPUT1
+	CALL	SWOP
+DPUT1:	POP	HL
+	POP	BC
+	JP	DPUT
+	RET
+;
+; USER SYSCOPY
+; Syntax: USER SYSCOPY
+;
+SYSCOPY:
+	RST	010H
+	DB	04FH			; VS7,CLS
+	CALL	SRCMESS
+	CALL	SET0
+	LD	B,52
+	CALL	BLKRD
+	JR	Z,SYS1
+	RST	028H
+	DB	03BH			; "Mismatch"
+SYS1:	CALL	DSTMESS
+	CALL	SET0
+	LD	B,52
+	CALL	BLKWR
+	JR	Z,SYS2
+	RST	028H
+	DB	03BH			; "Mismatch"
+SYS2:	CALL	EXITMESS
+SYS3:	CALL	KBD
+	JR	Z,SYS3
+	CP	00DH
+	JR	Z,SYS1
+	LD	C,RESDSC
+	CALL	SDXBDOS
+	JP	NEWINT3
+;
+SRCMESS:
+	CALL	DMESS1
+SRCM1:	CALL	DMESS2
+SRCM2:	CALL	KBD
+	JR	Z,SRCM2
+	RST	010H
+	DB	081H			; write string, 1 character
+	DB	00CH
+	RET
+;
+DSTMESS:
+	CALL	DMESS3
+	JR	SRCM1
+EXITMESS:
+	RST	010H
+	DB	099H			; write string, 25 characters
+	DB	00CH,'RET to continue, any oth'
+	RST	010H
+	DB	08EH			; write string, 14 characters
+	DB	'er key to quit'
+	RET
+;
+SET0:	LD	C,RESDSC
+	CALL	SDXBDOS
+	XOR	A
+	LD	(DRVRQ),A
+	LD	HL,0
+	LD	(TRKRQ),HL
+	LD	HL,1
+	LD	(SECRQ),HL
+	LD	HL,08000H
+	LD	(DMARQ),HL
+	RET
+;
+BLKWR:	PUSH	BC
+	LD	B,10
+BLKWP:	DEC	B
+	JR	Z,BLKWE
+	CALL	EXWR
+	OR	A
+	JR	NZ,BLKWP
+	LD	HL,(DMARQ)
+	LD	DE,00080H
+	ADD	HL,DE
+	LD	(DMARQ),HL
+	LD	A,(SECRQ)
+	INC	A
+	CP	27
+	CALL	Z,NTRK
+	LD	(SECRQ),A
+	POP	BC
+	DEC	B
+	JR	NZ,BLKWR
+	XOR	A
+	RET
+BLKWE:	LD	A,001H
+	POP	BC
+	OR	A
+	RET
+NTRK:	LD	A,(TRKRQ)
+	INC	A
+	LD	(TRKRQ),A
+	LD	A,001H
+	RET
+;
+; --- Linking module
+;
+
+;
+; Decode USER command
+;
+DUSER::	CALL	USRCHK
+	JR	Z,DUSER1
+	RST	028H
+	DB	031H			; "Statement not recognised"
+DUSER1:	CALL	JPLINK
+	JP	(HL)
+;
+; Jump table
+;
+JMPTAB:	DW	DLOAD
+	DW	DSAVE
+	DW	DPRINT
+	DW	DINPUT
+	DW	DLINPUT
+	DW	OPEN
+	DW	CLOSE
+	DW	KILL
+	DW	BREAD
+	DW	BWRITE
+	DW	DIR
+	DW	ERASE
+	DW	ETYPE
+	DW	REC
+	DW	REN
+	DW	RUN
+	DW	QUIT
+	DW	EOF
+	DW	COPY
+	DW	FORMAT
+	DW	SYSCOPY
+	DW	STAT
+;
+; Check the line pointed to by DE for a valid USER command
+; Returns Z if valid, else NZ
+;
+USRCHK:	LD	A,(DE)
+	BIT	7,A
+	JR	NZ,USRCH1
+	LD	B,0FFH
+	LD	HL,DWORDLST
+USRCHA:	PUSH	DE
+	INC	B
+USRCH0:	LD	A,(HL)
+	AND	07FH
+	EX	DE,HL
+	CP	(HL)
+	EX	DE,HL
+	JR	NZ,MISMATCH
+	BIT	7,(HL)
+	JR	NZ,MATCH
+	INC	DE
+	INC	HL
+	JR	USRCH0
+MATCH:	POP	AF
+	LD	A,B
+	JR	USRCH1
+MISMATCH:
+	BIT	7,(HL)
+	INC	HL
+	JR	Z,MISMATCH
+	LD	A,(HL)
+	AND	A
+	POP	DE
+	JR	NZ,USRCHA
+	INC	A
+	RET
+USRCH1:	LD	HL,TOKTAB
+	LD	BC,22
+	CPDR
+	RET	NZ
+	LD	HL,JMPTAB
+	ADD	HL,BC
+	ADD	HL,BC
+	PUSH	DE
+	RST	008H			; DEHL
+	EX	DE,HL
+	POP	DE
+	CP	A
+	RET
+;
+; Token value, or index into DWORDLST
+;
+TOKTABS:
+	DB	09EH			; LOAD
+	DB	0B5H			; SAVE
+	DB	090H			; PRINT
+	DB	098H			; INPUT
+	DB	0C1H			; LINE
+	DB	0			; OPEN
+	DB	1			; CLOSE
+	DB	2			; KILL
+	DB	0B0H			; READ
+	DB	3			; WRITE
+	DB	4			; DIR
+	DB	5			; ERA
+	DB	6			; TYPE
+	DB	7			; REC
+	DB	8			; REN
+	DB	0B4H			; RUN
+	DB	9			; QUIT
+	DB	10			; EOF
+	DB	11			; COPY
+	DB	12			; FORMAT
+	DB	13			; SYSCOPY
+TOKTAB:	DB	14			; STAT
+;
+DWORDLST:
+	DC	"OPEN"
+	DC	"CLOSE"
+	DC	"KILL"
+	DC	"WRITE"
+	DC	"DIR"
+	DC	"ERA"
+	DC	"TYPE"
+	DC	"REC"
+	DC	"REN"
+	DC	"QUIT"
+	DC	"EOF"
+	DC	"COPY"
+	DC	"FORMAT"
+	DC	"SYSCOPY"
+	DC	"STAT"
+	DB	0
+;
+; Called when first char in BASIC statement is not token.
+; Inserts LET or GOTO token into line, and tries syntax check again.
+;
+SYNERR:	CP	'0'
+	JR	C,SYNER1
+	CP	'9'+1
+	JR	NC,SYNER2
+	LD	A,096H			; GOTO token
+	JR	SYNER3
+SYNER1:	RST	028H
+	DB	001H			; "Mistake"
+SYNER2:	CP	'A'
+	JR	C,SYNER1
+	CP	'Z'+1
+	JR	NC,SYNER1
+	LD	A,09CH			; LET token
+; insert token to address HL
+SYNER3:	PUSH	AF
+	CALL	CALLEN
+	ADD	HL,BC
+	LD	D,H
+	LD	E,L
+	DEC	HL
+	LDDR
+	EX	DE,HL
+	POP	AF
+	LD	(HL),A
+	RET
+;
+END

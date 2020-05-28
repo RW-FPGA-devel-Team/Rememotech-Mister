@@ -1,0 +1,85 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Getting Quartus II to work</H1>
+
+    <P>First, I must say that Quartus is brilliant.
+    A complete hardware noob like myself can get up and running and
+    creating complex hardware designs in hours.
+
+<!--...s64 bit Fedora 29\44\ 32 bit Quartus 13\46\0sp1:4:-->
+<H2>64 bit Fedora 29, 32 bit Quartus 13.0sp1</H2>
+
+<P>This is my new setup, as of 2019-01.
+
+<P>13.0sp1 is the latest version of Quartus to support Cyclone II devices,
+so I can't use anything later.
+
+<P>Quartus is still a 32 bit program, so :-
+<PRE>
+# dnf -y install \
+libX11.i686 \
+libXau.i686 \
+libXdmcp.i686 \
+libXext.i686 \
+libXft-devel.i686 \
+libXrender.i686 \
+libXt.i686 \
+libXtst.i686 \
+libpng12.i686 \
+libnsl.i686 \
+compat-openssl.i686
+# cd /opt/altera/13.0sp1/quartus/linux
+# ln -s /usr/lib/libcrypto.so.1.0.2o libcrypto.so
+# ln -s /usr/lib/libgcrypt.so.20 libgcrypt.so
+# ln -s /usr/lib/libssl.so.1.0.2o libssl.so</PRE>
+
+<P>The JTAG still needs rules allowing a normal user access to USB Blaster,
+so create <CODE>/etc/udev/rules.d/51-altera-usb-blaster.rules</CODE>
+containing :-
+<PRE>
+SUBSYSTEM=="usb", ATTR{idVendor}=="09fb", ATTR{idProduct}=="6001", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="09fb", ATTR{idProduct}=="6002", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="09fb", ATTR{idProduct}=="6003", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="09fb", ATTR{idProduct}=="6010", MODE="0666"
+SUBSYSTEM=="usb", ATTR{idVendor}=="09fb", ATTR{idProduct}=="6810", MODE="0666"</PRE>
+
+<P>I found running <CODE>udevadm control -reload</CODE> as <CODE>root</CODE>
+doesn't make the system notice the new rules, I had to reboot.
+
+<P>As yourself :-
+<PRE>
+$ touch ~/.jtagd.conf</PRE>
+<!--...e-->
+<!--...sGeneral tips:4:-->
+<H2>General tips</H2>
+
+<P>To import <CODE>DE1.qsf</CODE> from Altera website,
+use <B>Assignments &gt; Import Assignments...</B>
+
+<P>Top level port names should reflect PIN names in this file.
+
+<P>I choose to do Active Serial Programming, which means the board will not
+lose the FPGA configuration at power off
+(the JTAG alternative isn't persistent).
+So under
+<B>Assignments &gt; Device &gt; Device and Pin Options... &gt; Configuration</B>
+I select EPCS4.
+Under <B>Tools &gt; Programmer</B> I select device as EPCS4 and
+select <CODE>.pof</CODE> file to program.
+Flip switch to PROG, click <B>Start</B>, when done, flip switch to RUN.
+
+<P>Beware SignalTap logic analyser errors.
+I find I need to shutdown Quartus, kill <CODE>jtagd</CODE>,
+then restart Quartus and start SignalTap.
+Otherwise when I press "Run Analysis", I get "Invalid data received".
+If I use "Read Data", I get what looks like reasonable data,
+but the start-stop point is somewhere mid data.
+<!--...e-->
+
+  </BODY>
+</HTML>
+

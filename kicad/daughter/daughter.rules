@@ -1,0 +1,87 @@
+
+(rules PCB daughter
+  (snap_angle 
+    fortyfive_degree
+  )
+  (autoroute_settings
+    (fanout off)
+    (autoroute on)
+    (postroute on)
+    (vias on)
+    (via_costs 50)
+    (plane_via_costs 5)
+    (start_ripup_costs 100)
+    (start_pass_no 1463)
+    (layer_rule F.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 2.3)
+    )
+    (layer_rule B.Cu
+      (active on)
+      (preferred_direction vertical)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.8)
+    )
+  )
+  (rule
+    (width 250.0)
+    (clear 200.2)
+    (clear 125.0 (type smd_to_turn_gap))
+    (clear 50.0 (type smd_smd))
+  )
+  (padstack "Via[0-1]_800:400_um"
+    (shape
+      (circle F.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle B.Cu 800.0 0.0 0.0)
+    )
+    (attach off)
+  )
+  (via 
+    "Via[0-1]_800:400_um" "Via[0-1]_800:400_um" default
+  )
+  (via 
+    "Via[0-1]_800:400_um-kicad_default" "Via[0-1]_800:400_um" "kicad_default"
+  )
+  (via_rule
+    default "Via[0-1]_800:400_um"
+  )
+  (via_rule
+    "kicad_default" "Via[0-1]_800:400_um-kicad_default"
+  )
+  (class default
+    (clearance_class default)
+    (via_rule default)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+  (class "kicad_default"
+    /POT0 /POT2 /POT4 /POT6 "/OTSTB_n" /PIN0 /PIN2 /PIN4
+    /PIN6 /INSTB /5V /PIN7 /PIN5 /PIN3 /PIN1 /0V
+    /POT7 /POT5 /POT3 /POT1 /3V3 "Net-(J3-Pad36)" "Net-(J3-Pad35)" "Net-(J3-Pad34)"
+    "/ERROR_n" /SLCT /PE /BUSY /PRD7 /PRD6 /PRD5 /PRD4
+    /PRD3 /PRD2 /PRD1 /PRD0 "/STROBE_n" /R3 /R2 /R1
+    /R0 /G3 /G2 /G1 /G0 /B3 /B2 /B1
+    /B0 /HSYNC /VSYNC /R /G /B "Net-(J5-Pad4)" "Net-(J5-Pad9)"
+    "Net-(J5-Pad11)" "Net-(J5-Pad12)" "Net-(J5-Pad13)" "Net-(J5-Pad14)" "Net-(J5-Pad15)" "Net-(J5-Pad0)" "Net-(J3-Pad32)" "Net-(J3-Pad29)"
+    "Net-(J3-Pad27)" "Net-(J3-Pad26)" "Net-(J3-Pad19)" /D3 /D2 /D1 /D0 /D4
+    /D5 /D6 /D7 "/CE_n" "/OE_n" /A0 /A1 /A2
+    /A3 /A4 /A5 /A6 /A7 /A8 /A9 /A10
+    /A11 /A12 /A13 /A14 /A15 /LED "Net-(D1-Pad1)"
+    (clearance_class "kicad_default")
+    (via_rule kicad_default)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu B.Cu)
+    )
+  )
+)

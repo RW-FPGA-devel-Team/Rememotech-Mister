@@ -1,0 +1,7 @@
+0100 START	
+
+select drive
+$Write error
+$Disk formatted
+$ווווווווווווווווווווווווווווווווBad drive
+$Cannot format the boot

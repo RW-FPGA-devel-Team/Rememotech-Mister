@@ -1,0 +1,82 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Download</H1>
+
+    <P>REMEMOTECH can be downloaded from 
+    <A HREF="http://www.nyangau.org/rememotech/rememotech.zip">
+       <CODE>http://www.nyangau.org/rememotech/rememotech.zip</CODE></A>.
+
+    <P>Change log :-
+    <P>
+    <TABLE>
+      <TR>
+        <TH>Date
+        <TH>Changes
+      <TR>
+        <TD NOWRAP>2012-04-08
+        <TD>Implements VDP, CTC, sound chip, virtual cassette,
+            and is able to run lots of games.
+      <TR>
+        <TD>2012-04-30
+        <TD>SDX ROM added.
+            and is able to run lots of games.
+        <BR>This completes the REMEMOTECH <B>r1</B>.
+        <BR>Three known systems built:
+            mine, one by Dave Stevenson, one I built and sent to Geoff Boyd.
+      <TR>
+        <TD>2016-10-19
+        <TD>Start of work on REMEMOTECH <B>r2</B>.
+        <BR>Numeric Accelerator from REMEMOrizer added,
+            as demoed at Memofest 2016 in Aberdeen.
+      <TR>
+        <TD>2017-02-05
+        <TD>Upgrade of Linux to Fedora 25
+            and corresponding upgrade of Quartus to 13.0sp1.
+        <BR>Removal of some compile time warnings.
+        <BR>Removal of clock-crossing-domain problem in sound chip,
+            which was a bug right from the start, but only seems to occur
+            post the r1 release.
+            Side effect of the fix is that the tone of the sound chip output
+            varies very slightly depending on processor speed setting.
+        <BR>Addition of initial implementation of port 7.
+      <TR>
+        <TD>2019-10-12
+        <TD>Upgrade of Linux to Fedora 29.
+        <BR>Start of work on REMEMOTECH <B>r3</B>.
+        <BR>Serial port support.
+        <BR>Daughter board.
+        <BR>Centronics support.
+        <BR>Proper port 7 support.
+        <BR>External ROM 2 EEPROM support.
+        <BR>Proper 2nd VGA support.
+    </TABLE>
+
+    <P>Copying of the included VHDL is encouraged.
+    Respect the licenses of included VHDL written by others.
+    The included ROMs either are the original ROMs from real Memotech
+    computers, or are derived from them, and these images are readily
+    available on the net already.
+    Copying the included driver code is probably ok as it was derived from
+    code developed by Memotech itself, long since defunct.
+    Caveat Emptor.
+
+    <P>The initial RAM Disc image includes parts of CP/M 2.2.
+    CP/M is
+    <A HREF="http://www.theregister.co.uk/2001/11/26/cp_m_collection_is_back/" TARGET="_main">open source</A>
+    and is downloadable
+    <A HREF="http://www.cpm.z80.de/" TARGET="_main">here</A> and other places.
+
+    <P>If you have a REMEMOTECH r3 or later, I may have a daughter board
+    I can send you.
+
+    <P>The author of REMEMOTECH and this documentation is <B>Andy Key</B>
+    (email <CODE>andy.z.key@googlemail.com</CODE>).
+
+    <P>{{{ Andy
+
+  </BODY>
+</HTML>

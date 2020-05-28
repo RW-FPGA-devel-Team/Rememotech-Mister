@@ -1,0 +1,419 @@
+TITLE	RENUM	REMEMOTECH Numeric Accelerator
+
+; Depends on REMEMOTECH hardware accelerator
+;
+
+.Z80
+
+ASEG
+
+;
+; Version
+;
+@V1	EQU	1
+@V2	EQU	0
+;
+; General equates
+;
+CR	EQU	13
+LF	EQU	10
+EOF	EQU	26
+ESC	EQU	27
+;
+; CP/M BDOS equates
+;
+BDOS	EQU	0005H
+CONOUT	EQU	2
+PRINTF	EQU	9
+
+;
+	INCLUDE	PORTS.INC
+	INCLUDE	NUMACCEL.INC
+
+	ORG	100H
+
+; if you type the .COM file, you see the version number
+	DB	CR,LF,'*V',@V1+'0','.',@V2+'0',CR,LF,EOF
+
+; check we running on the right kind of hardware
+	LD	DE,MSGHW
+	LD	A,(0FFC1H)
+	CP	'R'
+	JP	NZ,ERROR
+	LD	A,(0FFC2H)
+	CP	'E'
+	JP	NZ,ERROR
+	LD	A,(0FFC3H)
+	CP	'M'
+	JP	NZ,ERROR
+; enable accelerator, if we can
+	LD	DE,MSGHW2
+	IN	A,(P_RIZEQ)
+	RES	6,A
+	OUT	(P_RIZEQ),A
+	IN	A,(P_RIZEQ)
+	BIT	6,A
+	JP	NZ,ERROR
+	SET	6,A
+	OUT	(P_RIZEQ),A
+	IN	A,(P_RIZEQ)
+	BIT	6,A
+	JP	Z,ERROR
+;
+	LD	HL,PATCHS
+	LD	DE,PATCHD
+	LD	BC,PATCHE-PATCHS
+	LDIR
+	CALL	PATCHD
+;
+	LD	DE,MSGOK
+	LD	C,PRINTF
+	CALL	BDOS
+	RST	0
+
+;
+; Display error at DE and exit
+;
+ERROR::
+	LD	C,PRINTF
+	CALL	BDOS
+	RST	0
+
+;
+; Error messages
+;
+MSGHW:	DB	23,'This program only works on REMEMOTECH',22,CR,LF,'$'
+MSGHW2:	DB	23,'This program only works on REMEMOTECH with Accelerator support',22,CR,LF,'$'
+MSGOK:	DB	23,'Numeric accelerator enabled and ROM patched',22,CR,LF,'$'
+
+; -----------------------------------------------------------------------------
+
+PATCHS:
+.PHASE	04000H
+
+;
+; Do the patching
+;
+PATCHD:	DI
+	LD	A,002H			; "gamma" page of SRAM
+	OUT	(P_PAGE1),A		; visible at 04000H-07FFFH
+	LD	A,008H			; OS and REMON page of SRAM
+	OUT	(P_PAGE2),A		; visible at 08000H-0BFFFH
+	LD	A,00EH			; RELCPMH=0 mode able to see SRAM
+	OUT	(P_IOB),A
+
+	LD	HL,PTAB
+;
+	LD	DE,SUMD+08000H
+	LD	BC,SUME-SUMD
+	LDIR
+;
+	LD	DE,MULD+08000H
+	LD	BC,MULE-MULD
+	LDIR
+;
+	LD	DE,DIVD+08000H
+	LD	BC,DIVE-DIVD
+	LDIR
+;
+	LD	DE,REMD+08000H
+	LD	BC,REME-REMD
+	LDIR
+;
+	LD	A,080H			; usual CP/M RELCPMH=1 mode
+	OUT	(P_IOB),A
+	EI
+	RET
+
+PTAB:
+
+.DEPHASE
+
+; -----------------------------------------------------------------------------
+
+ACC	EQU	0FDCCH
+OP1	EQU	0FDD2H
+
+;
+; The summation patch covers both subtraction and addition.
+;
+.PHASE	0E83H
+SUMD::
+
+; ACC=OP1-ACC
+FSUB::	JP	FSUB2
+
+; ACC=OP1+ACC
+FADD::	LD	HL,OP1
+	CALL	FPUSH
+	LD	HL,ACC
+	CALL	FPUSH
+	LD	A,C_FADD
+	; fall
+
+FCMD:	OUT	(P_NCMD),A
+	IN	A,(P_NRES)
+FRES:	CP	R_OK
+	JR	NZ,NOTOK
+	; fall
+
+FPOP:	LD	HL,ACC
+	IN	A,(P_MAN0)
+	LD	(HL),A
+	INC	HL
+	IN	A,(P_MAN1)
+	LD	(HL),A
+	INC	HL
+	IN	A,(P_MAN2)
+	LD	(HL),A
+	INC	HL
+	IN	A,(P_MAN3)
+	LD	(HL),A
+	INC	HL
+	IN	A,(P_EXP)
+	LD	(HL),A
+	LD	A,C_DROP
+	OUT	(P_NCMD),A
+	RET
+
+NOTOK:	CP	R_UNDR
+	JR	NZ,NOTUND		; Amazingly, underflow is treated as 0
+	; fall
+
+FPOP0:	XOR	A
+	LD	HL,ACC
+	LD	(HL),A
+	INC	HL
+	LD	(HL),A
+	INC	HL
+	LD	(HL),A
+	INC	HL
+	LD	(HL),A
+	INC	HL
+	LD	(HL),A
+	LD	A,C_INIT		; reset FPU
+	OUT	(P_NCMD),A
+	RET
+
+NOTUND:	CP	R_OVER
+	JR	NZ,NOTOVR
+
+OVER:	LD	A,C_INIT
+	OUT	(P_NCMD),A		; reset FPU
+	RST	028H
+	DB	32			; ="Overflow"
+
+NOTOVR:	LD	A,C_INIT
+	OUT	(P_NCMD),A		; reset FPU
+	RST	028H
+	DB	33			;="Div /0"
+
+	IF	$ GT 00EE3H
+	.PRINTX	/SUM patch is too big/
+	ENDIF
+
+SUME::
+.DEPHASE
+
+;
+; The multiplication patch.
+; Plenty of space to include divide logic too.
+;
+.PHASE	0100BH
+MULD::
+
+; ACC=OP1*ACC
+FMUL::	LD	HL,ACC
+	CALL	FPUSH
+	LD	HL,OP1
+	CALL	FPUSH
+	LD	A,C_FMUL
+	JP	FCMD
+
+FSUB2:	LD	HL,OP1
+	CALL	FPUSH
+	LD	HL,ACC
+	CALL	FPUSH
+	LD	A,C_FSUB
+	JP	FCMD
+
+FDIV2:	LD	HL,OP1
+	CALL	FPUSH
+	LD	HL,ACC
+	CALL	FPUSH
+	LD	A,C_FDIV
+	OUT	(P_NCMD),A
+FDIV4:	IN	A,(P_NRES)
+	CP	R_BUSY
+	JR	Z,FDIV4			; takes 35T approx
+	JP	FRES
+
+FREM2:	LD	HL,OP1
+	CALL	FPUSH			; op1
+	LD	HL,ACC
+	CALL	FPUSH			; op1 acc
+	LD	A,C_OVER
+	OUT	(P_NCMD),A		; op1 acc op1
+	LD	A,C_OVER
+	OUT	(P_NCMD),A		; op1 acc op1 acc
+	LD	A,C_FDIV
+	OUT	(P_NCMD),A		; op1 acc op1/acc
+FREM4:	IN	A,(P_NRES)
+	CP	R_BUSY
+	JR	Z,FREM4
+	CP	R_OK
+	JP	NZ,NOTOK
+	LD	A,C_FINT
+	OUT	(P_NCMD),A		; op1 acc int(op1/acc)
+	LD	A,C_FMUL
+	OUT	(P_NCMD),A		; op1 acc*int(op1/acc)
+	LD	A,C_FSUB
+	JP	FCMD			; op1-acc*int(op1/acc)
+
+FPUSH:	LD	A,C_LIT
+	OUT	(P_NCMD),A
+	LD	A,(HL)
+	OUT	(P_MAN0),A
+	INC	HL
+	LD	A,(HL)
+	OUT	(P_MAN1),A
+	INC	HL
+	LD	A,(HL)
+	OUT	(P_MAN2),A
+	INC	HL
+	LD	A,(HL)
+	OUT	(P_MAN3),A
+	INC	HL
+	LD	A,(HL)
+	OUT	(P_EXP),A
+	RET
+
+	IF	$ GT 01094H
+	.PRINTX	/MUL patch is too big/
+	ENDIF
+
+MULE::
+.DEPHASE
+
+;
+; The division patch.
+; Tiny space, so simply jump to patch above.
+;
+.PHASE	0109EH
+DIVD::
+
+; ACC=OP1/ACC
+; note, the disassembly listing must be wrong
+FDIV::	JP	FDIV2
+
+	IF	$ GT 010A6H
+	.PRINTX	/DIV patch is too big/
+	ENDIF
+
+DIVE::
+.DEPHASE
+
+;
+; The remainder patch
+; Tiny space, so simply jump to patch above.
+;
+.PHASE	00FFAH
+REMD::
+
+; Original ROM algorithm
+;   ACC=FRAC(OP1/ACC)*ACC
+;
+; Algorithm implemented here
+;   ACC=OP1-INT(OP1/ACC)*ACC
+;
+; In bc, which has lots more accuracy than us, using original algorithm
+;   1000000/3.14159265 = 318309.8865475127
+;   (1000000/3.14159265)-318309 = 0.8865475127
+;   ((1000000/3.14159265)-318309)*3.14159265 = 2.7851711497
+;
+; Using original algorithm
+;   10000000/3.14159265 = 318309.887
+;   (10000000/3.14159265)-318309 = 0.88659668
+;   ((10000000/3.14159265)-318309)*3.14159265) = 2.78532561
+;   MOD(1000000,3.14159265) = 2.78532561
+;
+; On real hardware with accelerator, using this algorithm
+;   1000000/3.14159265 = 318309.887
+;   INT(1000000/3.14159265) = 318309
+;   INT(1000000/3.14159265)*3.14159265 = 0.999997.215
+;   1000000-INT(1000000/3.14159265)*3.14159265 = 2.78515625
+;   MOD(1000000,3.14159265) = 2.78515625
+;
+; This algorithm appears 10x closer to bc, so I'll keep it
+
+FREM::	JP	FREM2
+
+	IF	$ GT 01008H
+	.PRINTX	/REM patch is too big/
+	ENDIF
+
+REME::
+.DEPHASE
+
+
+.COMMENT %
+;...swork in progress:0:
+
+
+;
+; The cosine patch
+;
+.PHASE 0137DH
+COSD::
+
+FCOS::	JP	FCOS2
+
+	IF	$ GT 01382H
+	.PRINTX	/COS patch is too big/
+	ENDIF
+
+COSE::
+.DEPHASE
+
+;
+; The sine patch
+;
+.PHASE 01382H
+SIND::
+
+FSIN::	LD	HL,ACC
+	CALL	FPUSH
+FSIN2:	LD	A,C_FABS
+	OUT	(P_NCMD),A			; |x|
+	LD	A,C_LIT
+	OUT	(P_NCMD),A
+	LD	A,C_2PI				; |x| 2pi
+	OUT	(P_NCMD),A
+; @@@
+
+FCOS2:	LD	HL,ACC
+	CALL	FPUSH
+	LD	A,C_LIT
+	OUT	(P_NCMD),A
+	LD	A,C_PI2
+	OUT	(P_NCMD),A
+	LD	A,C_FADD
+	OUT	(P_NCMD),A
+	IN	A,(P_NRES)
+	CP	R_OVER
+	JP	Z,OVER
+	JR	FSIN2
+
+	IF	$ GT 01382H
+	.PRINTX	/COS patch is too big/
+	ENDIF
+
+COSE::
+.DEPHASE
+
+;...e
+%
+
+PATCHE:
+
+END

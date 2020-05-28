@@ -1,0 +1,84 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1><U>RE</U>implement a <U>MEMOTECH</U> compatible computer</H1>
+
+    <P>Updated to revision r3, supporting a
+    <A HREF="hardware.htm#daughter">daughter board</A>, enabling
+    <A HREF="hardware.htm#printer">printer</A> support,
+    proper pin compatible <A HREF="hardware.htm#port7">port 7</A> support,
+    external <A HREF="hardware.htm#rom2">ROM 2</A> support,
+    and improved <A HREF="hardware.htm#vga">secondary VGA</A> support.
+    Also supporting a <A HREF="hardware.htm#serial">serial</A> port.
+
+    <P>
+    <IMG SRC="rememotech-picture.jpg">
+
+    <P><B>REMEMOTECH</B> is a modern-day re-implementation of a
+    Memotech MTX/FDX/SDX compatible computer :-
+    <UL>
+      <LI>in VHDL
+      <LI>re-using existing VHDL definitions of major chips
+      <LI>writing VHDL definitions of missing chips
+      <LI>writing the glue logic in VHDL
+      <LI>synthesizing for a
+          <A HREF="http://datasheet.octopart.com/EP2C20F484C7-Altera-datasheet-1735.pdf" TARGET="_main">Cyclone II</A>
+          FPGA
+      <LI>targetting an
+          <A HREF="http://www.terasic.com.tw/cgi-bin/page/archive.pl?No=83" TARGET="_main">Altera DE1</A>
+          board
+      <LI>exploiting the hardware on the board, around the FPGA,
+          such as clock, connectors, Flash, SRAM,
+          VGA DACs, sound CODEC, SD Card, ...
+    </UL>
+
+    <P>It implements enough hardware to allow it to run
+    MTX BASIC, various MTX games and CP/M.
+    It supports :-
+    <UL>
+      <LI>Z80 compatible CPU, at 4.166MHz and other speeds upto 25MHz
+      <LI>384KB RAM, 72KB ROM
+      <LI>PS/2 keyboard
+      <LI>VDP, outputting to 640x480 @ 50Hz (or 60Hz) VGA
+      <LI>Sound chip
+      <LI>80 column card support, with 80x24 and 80x48 modes,
+          outputting to 640x480 @ 60Hz VGA
+      <LI>Whether VDP or 80 column output appears on main VGA output switchable
+      <LI>The other display can appear on another VGA, via a daughter card
+      <LI>RAM Disc support (upto 320KB)
+      <LI>SD Card as a large and fast alternative to floppy disk
+      <LI>Modified SDX ROM using SD Card and RAM Disc instead of floppy disk
+      <LI>Virtual cassette support
+      <LI>Numeric accelerator
+      <LI>Serial port support
+      <LI>Centronics printer support, via a daughter card
+      <LI>Port 7 support, via a daughter card
+      <LI>External ROM 2 support, via a daughter card
+    </UL>
+
+    <P>It was developed because I had previously implemented the
+    <A HREF="http://www.nyangau.org/memu/memu.htm" TARGET="_main">MEMU</A>
+    Memotech emulator and this was the next logical challenge.
+    As a starting point, I knew nothing about VHDL or hardware design.
+    It was a great learning opportunity.
+
+    <P>REMEMOTECH reproduces most of the MTX functionality, including
+    some from FDX and and some from SDX.
+    New features have been added where existing software is able to benefit
+    from them.
+
+    <P>The implementation tries to stick to non-vendor specific VHDL,
+    avoids vendor megafunctions, and might work with some tweaks on other
+    boards or vendor technologies.
+    A few Quartus specific features are needed in order to squeeze REMEMOTECH
+    into the Altera DE1 board (these are commented as such in the code).
+
+    <P><A HREF="http://www.nyangau.org/rememorizer/rememorizer.htm" TARGET="_main">REMEMOrizer</A>
+    is an attempt to apply the technology developed here to create
+    an add-on for Memotech owners.
+
+  </BODY>
+</HTML>

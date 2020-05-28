@@ -1,0 +1,914 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Hardware</H1>
+
+    <P>Here we describe the hardware in REMEMOTECH :-
+    <UL>
+      <LI><A HREF="#memory">Memory</A>
+      <LI><A HREF="#cpu">CPU</A>
+      <LI><A HREF="#vdp">VDP chip</A>
+      <LI><A HREF="#keyboard">MTX Keyboard</A>
+      <LI><A HREF="#sound">Sound chip</A>
+      <LI><A HREF="#ctc">Z80 CTC</A>
+      <LI><A HREF="#tape">Cassette tape</A>
+      <LI><A HREF="#serial">Serial ports</A>
+      <LI><A HREF="#fdc">Floppy Disc Controllers</A>
+      <LI><A HREF="#sdcard">SD Card</A>
+      <LI><A HREF="#silicon">Silicon Discs</A>
+      <LI><A HREF="#80col">80 column card</A>
+      <LI><A HREF="#accelerator">Accelerator</A>
+      <LI><A HREF="#daughter">Daughter board</A>
+      <LI><A HREF="#printer">Printer</A>
+      <LI><A HREF="#vga">VGA monitor support</A>
+      <LI><A HREF="#port7">Port 7</A>
+      <LI><A HREF="#misc">Misc</A>
+    </UL>
+
+<!--...sMemory:4:-->
+<A NAME="memory"><H2>Memory</H2></A>
+
+<P>The normal Memotech memory map is implemented.
+As far as the CPU is concerned, it believes it has :-
+<UL>
+  <LI>8KB fixed ROM
+  <LI>8x8KB paged ROMs
+  <LI>64KB of RAM
+  <LI>an additional 320KB of RAM (used as a RAM Disc)
+</UL>
+
+<P>The Altera DE1 has 4MB of Flash, 512KB of SRAM and 8MB of SDRAM.
+
+<P>During normal operation, what the CPU sees as ROM and RAM is
+provided by SRAM. 
+The astute reader will note that 8KB+8x8KB+64KB+320KB is less than 512KB.
+In the remaining SRAM space sits
+<A HREF="software.htm#remon">REMON</A> (8KB)
+and the read/write virtual cassette data space (48KB).
+
+<P>The FPGA also contains 1KB of on-chip ROM which
+contains a program called <A HREF="software.htm#reboot">REBOOT</A>.
+
+<!--...sMemory map pictures:4:-->
+<H3>Memory map pictures</H3>
+
+<P>In these pictures, ROMs are shown with their names and are 8KB in size
+and RAM pages are assigned letters and are 16KB in size.
+RAM pages &alpha; to &delta; are the normal 64KB present in an MTX512.
+RAM pages a to t are extra pages, which are used as 320KB of RAM Disc.
+
+<P>REMEMOTECH logical memory map, as seen in <CODE>RELCPMH=0</CODE> mode :-
+<P>
+<TABLE>
+<TR><TH>R2,R1,R0<TH>0x0000..0x1fff<TH>0x2000..0x3fff<TH>0x4000..0x7fff<TH>0x8000..0xbfff<TH>0xc000..0xffff    <TH>P3,P2,P1,P0
+<TR><TH>0       <TD ROWSPAN=8>OS  <TD>BASIC         <TD>&gamma;       <TD>&beta;        <TD ROWSPAN=16>&alpha;<TH>0
+<TR><TH>1                         <TD>ASSEM         <TD>a             <TD>&delta;                             <TH>1
+<TR><TH>2                         <TD>ROM 2         <TD>c             <TD>b                                   <TH>2
+<TR><TH>3                         <TD>ROM 3         <TD>e             <TD>d                                   <TH>3
+<TR><TH>4                         <TD>CP/M boot     <TD>g             <TD>f                                   <TH>4
+<TR><TH>5                         <TD>SDX ROM       <TD>i             <TD>h                                   <TH>5
+<TR><TH>6                         <TD>ROM 6         <TD>k             <TD>j                                   <TH>6
+<TR><TH>7                         <TD>ROM 7         <TD>m             <TD>l                                   <TH>7
+<TR><TD COLSPAN=3 ROWSPAN=8>&nbsp;                  <TD>o             <TD>n                                   <TH>8
+<TR>                                                <TD>q             <TD>p                                   <TH>9
+<TR>                                                <TD>s             <TD>r                                   <TH>A
+<TR>                                                <TD>&nbsp;        <TD>t                                   <TH>B
+<TR>                                                <TD>&nbsp;        <TD>&nbsp;                              <TH>C
+<TR>                                                <TD>&nbsp;        <TD>&nbsp;                              <TH>D
+<TR>                                                <TD>any SRAM      <TD>any SRAM                            <TH>E
+<TR>                                                <TD>any SRAM      <TD>any Flash                           <TH>F
+</TABLE>
+
+<P>REMEMOTECH logical memory map, as seen in <CODE>RELCPMH=1</CODE> mode :-
+<P>
+<TABLE>
+<TR><TH>0x0000..0x3fff<TH>0x4000..0x7fff<TH>0x8000..0xbfff<TH>0xc000..0xffff    <TH>P3,P2,P1,P0
+<TR><TD>&delta;       <TD>&gamma;       <TD>&beta;        <TD ROWSPAN=16>&alpha;<TH>0
+<TR><TD>a             <TD>b             <TD>c                                   <TH>1
+<TR><TD>d             <TD>e             <TD>f                                   <TH>2
+<TR><TD>g             <TD>h             <TD>i                                   <TH>3
+<TR><TD>j             <TD>k             <TD>l                                   <TH>4
+<TR><TD>m             <TD>n             <TD>o                                   <TH>5
+<TR><TD>p             <TD>q             <TD>r                                   <TH>6
+<TR><TD>s             <TD>t             <TD>&nbsp;                              <TH>7
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>8
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>9
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>A
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>B
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>C
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>D
+<TR><TD>&nbsp;        <TD>&nbsp;        <TD>&nbsp;                              <TH>E
+<TR><TD>on-chip ROM   <TD>any SRAM      <TD>any Flash                           <TH>F
+</TABLE>
+
+<P>The on-chip memory is only 1KB in size, and so repeats 16 times.
+The <CODE>IOBYTE</CODE> register is initialised to <CODE>0x8f</CODE> on reset,
+so as to ensure execution starts from the on-chip memory.
+
+<P>In RAM pages 14 and 15, it is possible to address any 16KB page of SRAM or Flash.
+Which page is visible at <CODE>0x4000..0x7fff</CODE> is controlled by page
+register 1 (port <CODE>0xd0</CODE>), and
+which page is visible at <CODE>0x8000..0xbfff</CODE> is controlled by page
+register 2 (port <CODE>0xd1</CODE>).
+Just write the SRAM page number (range 0x00..0x1f) to the page register.
+
+<P>REMEMOTECH SRAM physical memory map (as a set of 16KB pages) :-
+<P>
+<TABLE>
+<TR><TH>SRAM address    <TH>SRAM page(s)<TH>Content
+<TR><TD>0x00000..0x0ffff<TD>0x00..0x03  <TD>RAM pages &alpha; to &delta;
+<TR><TD>0x10000..0x13fff<TD>0x04        <TD>BASIC and ASSEM
+<TR><TD>0x14000..0x17fff<TD>0x05        <TD>ROM 2 and ROM 3
+<TR><TD>0x18000..0x1bfff<TD>0x06        <TD>CP/M boot and SDX ROM
+<TR><TD>0x1c000..0x1ffff<TD>0x07        <TD>ROM 6 and ROM 7
+<TR><TD>0x20000..0x23fff<TD>0x08        <TD>OS and REMON
+<TR><TD>0x24000..0x2ffff<TD>0x09..0x0b  <TD>read/write virtual cassette area
+<TR><TD>0x30000..0x7ffff<TD>0x0c..0x1f  <TD>RAM pages a to t, RAM Disc area
+</TABLE>
+
+<P>Addresses <CODE>0x10000..0x7ffff</CODE> of the REMEMOTECH Flash physical
+memory map exactly matches the SRAM physical memory map.
+<CODE>0x00000..0x0ffff</CODE> of the Flash isn't used as we don't initialise
+the MTX512 RAM, only ROM images and Initial RAM Disc (pages a to t).
+The first 64KB of the Flash chip has 8x8KB sectors and the rest of the
+Flash is arranged in 64KB sectors - as we don't use the first 64KB,
+we don't need any special case code for this.
+
+<P>Addresses <CODE>0x10000..0x7ffff</CODE> on the "Flash image" SD Card are
+copied to <CODE>0x10000..0x7ffff</CODE> in Flash during initial setup, and
+then from there to <CODE>0x10000..0x7ffff</CODE> in SRAM during first startup
+(if you press the right combination of keys on the DE1).
+
+<P>Addresses <CODE>0x80000</CODE> and above in the Flash are divided into
+56 64KB virtual tape slots.
+As these are flash, they are read-only to MTX BASIC.
+<!--...e-->
+<!--...sROM 2:4:-->
+<A NAME="rom2"><H3>ROM 2 support</H3></A>
+
+<P>REMEMOTECH r3 supports a
+<A HREF="#daughter">daughter board</A>, with an EEPROM/EPROM socket.
+If SW1 or SW1 are turned on, LEDR1 and the LED on the daughter card light up,
+and the socket is enabled.
+
+<P>Due to variations in device pinouts, the SW1 and SW0 switches must be used
+to select the device pinout and size :-
+
+<P>
+<TABLE>
+<TR><TH>SW1<TH>SW0<TH>Pinout<TH>Size<TH>Subpages
+<TR><TD>0<TD>0<TD COLSPAN=3>Socket not used
+<TR><TD ROWSPAN=2>0<TD ROWSPAN=2>1<TD>2764 <TD ALIGN=RIGHT> 8KB<TD ALIGN=RIGHT>1
+<TR>          <TD>27128<TD ALIGN=RIGHT>16KB<TD ALIGN=RIGHT>2
+<TR><TD>1<TD>0<TD>27256<TD ALIGN=RIGHT>32KB<TD ALIGN=RIGHT>4
+<TR><TD>1<TD>1<TD>27512<TD ALIGN=RIGHT>64KB<TD ALIGN=RIGHT>8
+</TABLE>
+
+<P>When the socket is enabled, the chip contents appear as sub-pages in
+ROM slot 2.
+When disabled, whatever was loaded into SRAM by the initial flash setup
+is present.
+
+<P>Different chips have varying timing constraints, eg:
+<P>
+<TABLE>
+<TR><TH>Chip
+    <TH>Chip enable to data ready
+    <TH>Address valid to data ready
+    <TH>Output enable to data ready
+<TR><TD>ST M2764A-25
+    <TD ALIGN=RIGHT>250ns
+    <TD ALIGN=RIGHT>250ns
+    <TD ALIGN=RIGHT>100ns
+<TR><TD>W27C512-12
+    <TD ALIGN=RIGHT>120ns
+    <TD ALIGN=RIGHT>120ns
+    <TD ALIGN=RIGHT>55ns
+<TR><TD>W27C512-90
+    <TD ALIGN=RIGHT>90ns
+    <TD ALIGN=RIGHT>90ns
+    <TD ALIGN=RIGHT>40ns
+<TR><TD>W27C512-70
+    <TD ALIGN=RIGHT>70ns
+    <TD ALIGN=RIGHT>70ns
+    <TD ALIGN=RIGHT>30ns
+<TR><TD>W27C512-45
+    <TD ALIGN=RIGHT>45ns
+    <TD ALIGN=RIGHT>45ns
+    <TD ALIGN=RIGHT>20ns
+</TABLE>
+
+<P>As REMEMOTECH runs a T80 in FastZ80 mode, chip enable and address are
+asserted ~2T before, and output enable is asserted ~1T before reading data.
+At 4MHz, 1T=250ns (which is plenty), but at 25MHz, 1T=40ns.
+So you may need to consult the datasheet for your particular chip,
+and potentially slow the CPU down to get reliable EPROM reads.
+<!--...e-->
+<!--...e-->
+<!--...sCPU:4:-->
+<A NAME="cpu"><H2>CPU</H2></A>
+
+<P>REMEMOTECH uses the
+<A HREF="http://opencores.org/project,t80" TARGET="_main">T80</A>
+<A HREF="http://en.wikipedia.org/wiki/Zilog_Z80" TARGET="_main">Z80</A>
+clone from OpenCores.
+It runs it in the <CODE>FastZ80</CODE> mode, in which non-M1 CPU cycles
+execute in 3T, so for a given speed, it should be slightly faster than a
+real Z80.
+
+<P>It runs this at integer divisions of 25MHz,
+as controlled by switches SW9 to SW7 and reflected in LEDs LEDR9 to LEDR7 :-
+
+<P>
+<TABLE>
+<TR><TH>Switches       <TH>Divider      <TH>Speed
+<TR><TD ALIGN=RIGHT>000<TD ALIGN=RIGHT>1<TD ALIGN=RIGHT>25.000MHz
+<TR><TD ALIGN=RIGHT>001<TD ALIGN=RIGHT>2<TD ALIGN=RIGHT>12.500MHz
+<TR><TD ALIGN=RIGHT>010<TD ALIGN=RIGHT>3<TD ALIGN=RIGHT>8.333MHz
+<TR><TD ALIGN=RIGHT>011<TD ALIGN=RIGHT>4<TD ALIGN=RIGHT>6.250MHz
+<TR><TD ALIGN=RIGHT>100<TD ALIGN=RIGHT>5<TD ALIGN=RIGHT>5.000MHz
+<TR><TD ALIGN=RIGHT>101<TD ALIGN=RIGHT>6<TD ALIGN=RIGHT>4.166MHz
+<TR><TD ALIGN=RIGHT>110<TD ALIGN=RIGHT>7<TD ALIGN=RIGHT>3.571MHz
+<TR><TD ALIGN=RIGHT>111<TD ALIGN=RIGHT>8<TD ALIGN=RIGHT>3.125MHz
+</TABLE>
+
+<P>The speed may be changed during operation.
+Its safe to do this because the design avoids glitch problems associated
+with gated clocks.
+
+<P>4.166MHz is the closest to 4MHz that I could easily obtain,
+whilst retaining the ability to switch to faster speeds.
+
+<P>The CPU can discern the current 3 bit clock divider value (minus 1)
+by inputting from port 0xd8.
+
+<P>When RAM Page 15 is selected, Flash is visible in the address space.
+If the switches select <CODE>000</CODE> (ie: 25MHz) then in fact the system
+will be slowed to 12.5MHz, and the LEDs and port <CODE>0xd8</CODE> will
+reflect this.
+This is to ensure the CPU does not go too fast for the 70ns Flash memory.
+I do this because I couldn't get wait-states to work properly.
+<!--...e-->
+<!--...sVDP:4:-->
+<A NAME="vdp"><H2>VDP chip</H2></A>
+
+<P>Implements a useful subset of the
+<A HREF="http://en.wikipedia.org/wiki/Texas_Instruments_TMS9918" TARGET="_main">TMS9918A</A>
+(<A HREF="http://emu-docs.org/VDP%20TMS9918/Datasheets/TMS9918.pdf" TARGET="_main">datasheet</A>)
+VDP chip, and the PAL TMS9929A equivalent.
+
+<P>This implementation outputs 256x192 pixels doubled to 512x384,
+with border, to VGA.
+
+<P>It can output a non-standard 640x480 @ 50Hz signal,
+which is preferred as it means that VDP interrupts will occur at 50Hz,
+as they did on Memotech computers sold everywhere outside the US.
+You may have difficulty finding a monitor which copes with this,
+and if so, try looking for a UK LCD TV which also has a VGA input.
+
+<P>Alternatively, the VDP can be switched into 60Hz mode using SW4,
+which causes a 640x480 @ 60Hz VGA signal to be produced and VDP interrupts to
+occur at 60Hz.
+This can cause some games to go 20% faster.
+Some games (those which require 0.02s of processing time between frames)
+can miss the first end of frame and end up waiting for the next,
+and thus go twice as slow.
+Games written for the US market (if there are any) should be fine.
+
+<P>SW5 can be used to switch between the palette as I and
+Richard F. Drushel remember it, and the palette that Marat Fazyullin suggests
+better reflects the actual values used in the VDP chip itself.
+
+<P>This implementation of the VDP has debug features, which in REMEMOTECH
+are activated by certain keys :-
+<UL>
+  <LI>F9 - ignore pattern name table,
+      instead display all patterns
+  <LI>F10 - ignore pattern generator table,
+      instead display pattern number in hex
+  <LI>F11 - ignore pattern colour table,
+      instead use fixed foreground and background colours
+  <LI>F12 - ignore sprite generator table,
+      instead display pattern number(s) in hex.
+</UL>
+
+<P>These can be useful to give you a quick idea as to how certain games
+are constructed.
+In Text Mode, F10 doesn't work too well, as each character cell is
+only 6 pixels wide, and the hex code needs 8 pixels.
+Pressing F12 shifts the hex code so you can see the right 2 pixels of it.
+
+<P>16KB of Cyclone II M4K is used as the VDP memory, rather than external SRAM,
+thus neatly avoiding competing with T80 for the same external SRAM.
+
+<P>The implementation is a little unusual in that the processor interface
+to the VRAM is not via the VDP chip, its coded externally.
+This VDP implementation is an engine which reads from dual port VRAM
+and based on its registers, renders up a picture on VGA.
+In theory its possible to memory map the VRAM into the T80 memory space
+and avoid all the messing around with control and data port based access.
+In fact, REMEMOTECH faithfully implements the port 1 and 2 based access
+to memory, with the auto-incrementing address register.
+
+<P>Alternative VHDL implementations of the VDP include
+<A HREF="http://codehackcreate.com/archives/category/projects/f18a" TARGET="_main">F18A</A>,
+<A HREF="http://www.fpgaarcade.com/cv.htm" TARGET="_main">FPGA Colecovision Project</A>,
+<A HREF="http://en.wikipedia.org/wiki/1chipMSX" TARGET="_main">1chipMSX</A>
+(aka <A HREF="http://msxbanzai.tni.nl/computers/ese3.html" TARGET="_main">ESE MSX System 3</A>),
+and <A HREF="http://www.fpgaarcade.com/library.htm" TARGET="_main">FPGA Arcade</A>.
+<!--...e-->
+<!--...sMTX Keyboard:4:-->
+<A NAME="keyboard"><H2>MTX Keyboard</H2></A>
+
+<P>REMEMOTECH works with a UK PS/2 keyboard.
+It maps this to the UK MTX keyboard arrangement.
+
+<P>REMEMOTECH attempts to map the PS/2 keyboard to the MTX keyboard
+as closesly as possible, but there are several problems :-
+<UL>
+  <LI>Some characters are typed by different shifted keypresses
+      on the host PC keyboard compared to the MTX equivelent.
+      eg: <CODE>(</CODE> is shift 9 on the PS/2 keyboard,
+          but it is shift 8 on the MTX keyboard.
+      This isn't a problem for REMEMOTECH.
+      If you press type <CODE>(</CODE> by typing shift 9 on the host,
+      MEMU presses shift 8 in the emulated MTX keyboard,
+      thus producing the expected result. 
+  <LI>Some characters require shifted keypresses on one keyboard
+      but not the other.
+      eg: <CODE>^</CODE> is shift 6 on the PS/2 keyboard,
+          but it is unshifted on the MTX keyboard.
+      eg: <CODE>=</CODE> is unshifted on the PS/2 keyboard,
+          but it is shift - on the MTX keyboard.
+      This is a huge problem, because if I try to workaround this by
+      lying about the shift state, due to the way the keyboard sense
+      bits are typically scanned in MTX software, I observe intermittant
+      incorrect typing errors.
+      So therefore, <B>to type certain MTX characters, you must type
+      different things on the PS/2 keyboard</B>.
+      This remapping is done to ensure an unshifted PS/2 keypress
+      corresponds to an unshifted MTX keypress and a shifted PS/2
+      keypresses corresponds to a shifted MTX keypress.
+  <LI>The names on the keys differ.
+      So on the middle part of the PS/2 keyboard, keypresses
+      result in a keypress on the MTX keyboard of a key with the
+      closest sounding name.
+      eg: PS/2 <CODE>Insert</CODE> key presses MTX <CODE>INS</CODE>.
+  <LI>The MTX joystick produces keypresses on the MTX numeric keypad,
+      movement maps to the arrow keys and fire maps to the
+      <CODE>HOME</CODE> key.
+      The MTX numeric keypad is physically laid out so that the
+      <CODE>HOME</CODE> button is in the middle and the arrows
+      are grouped around it.
+      Therefore REMEMOTECH maps the PS/2 numeric keypad (on the far right)
+      so that 5 corresponds to <CODE>HOME</CODE> and the arrows around
+      it work as advertised.
+      So that games like Qogo and Reveal work as advertised,
+      the whole PS/2 keypad maps to the whole MTX keypad,
+      based on key position, not what is written on the keys.
+</UL>
+
+<P>Tables showing the effect of the above follow...
+
+<P>The effect of the shift-state problem :-
+<PRE>
+Use PS/2 keypress  to produce MTX keystroke
+-----------------  ------------------------
+^                  =
+=                  ^
+'                  @
+@                  '
+#                  :
+shift `            `</PRE>
+
+<P>Mapping of the middle part of the host PC keyboard :-
+<PRE>
+Middle part of PS/2 keyboard   MTX keypad
+----------------------------   ----------
+PgUp      End     Pause        7 PAGE   8 EOL     9 BRK
+Tab       Up      Delete       4 TAB    5 UP      6 DEL
+Left      Home    Right        1 LEFT   2 HOME    3 RIGHT
+Insert    Down    PgDn         0 INS    . DOWN    ENT CLS</PRE>
+
+<P>Mapping of the number pad of the PS/2 keybaord :-
+<PRE>
+PS/2 number pad              MTX keypad
+---------------              ----------
+Num Lock  /       *          7 PAGE   8 EOL     9 BRK
+Home      Up      PgUp       4 TAB    5 UP      6 DEL
+Left      Middle  Right      1 LEFT   2 HOME    3 RIGHT
+End       Down    PgDn       0 INS    . DOWN    ENT CLS</PRE>
+
+<P>REMEMOTECH doesn't cope well with keyboards that don't have a number pad.
+To try to ease this a little, the Alt and AltGr keys on a PS/2 keyboard
+are treated as the Home key.
+This is important as Home is used by most games as the fire key.
+
+<P>PS/2 keyboard F1-F8 become the MTX keyboard F1-F8.
+
+<P>Certain special keys have no equivelent on the MTX keyboard,
+and are available internally to control REMEMOTECH hardware.
+In particular, the left and right Windows keys, when pressed together,
+reset the system.
+And F9 to F12 control debug features in the VDP.
+Special keys on the numeric pad are available to the processor.
+
+<P>Older PC keyboards have a limitation in that 3 keypresses at once
+can cause the phantom appearance of a 4th keypress.
+Newer keyboard detect when this would be the case, and suppress the
+3rd keypress.
+The MTX joystick appears to press the arrow keys.
+This means moving diagonally and pressing fire counts as
+3 keypresses, and will not work as expected.
+Read the article on why
+<A HREF="http://www.sjbaker.org/wiki/index.php?title=Keyboards_Are_Evil" TARGET="_main">Keyboards Are Evil</A>
+for a full explanation.
+This is an unavoidable limitation, and REMEMOTECH suffers from it.
+<!--...e-->
+<!--...sSound chip:4:-->
+<A NAME="sound"><H2>Sound chip</H2></A>
+
+<P>REMEMOTECH implements the
+<A HREF="http://en.wikipedia.org/wiki/Texas_Instruments_SN76489" TARGET="_main">SN76489A</A>
+sound chip
+(<A HREF="http://members.casema.nl/hhaydn/howel/parts/76489.htm" TARGET="_main">datasheet</A>).
+
+<P>This implementation produces a signed sound value.
+However, the Altera DE1 does not provide direct access to a DAC which
+converts this value into a voltage on the line-out sound jack.
+Instead it has a WM8731 audio CODEC in the way.
+
+<P>So I used some VHDL from Mike Stirlings
+<A HREF="http://mikestirling.co.uk/bbc-micro-on-an-fpga/" TARGET="_main">BBC Micro on an FPGA</A>
+project.
+One VHDL entity programs registers into the CODEC, and I found I needed
+to tweak one register to raise the sampling/processing frequency from 8KHz
+to 48KHz, as the sound chip can generate higher frequencies than 4KHz.
+Another VHDL entity sends the signed sound value to the CODEC.
+
+<P>In the original SN76489A sound chip, the output of the 4 sound channels
+are analog summed to produce the final analog output.
+A straight digital "sum of square waves" implementation produces some
+unwanted noise in the final output signal.
+So in my sound chip I implement a simple smoothing algorithm,
+to try to take the "edges" off of the square waves,
+thus producing a nicer sound output.
+
+<P>Switches SW3 and SW2 provide 4 volume levels: Off, 1/4, 1/2, full.
+
+<P>An alternative VHDL implementation of the SN76489A can be found in the
+<A HREF="http://www.fpgaarcade.com/cv.htm" TARGET="_main">FPGA Colecovision Project</A>.
+<!--...e-->
+<!--...sZ80 CTC:4:-->
+<A NAME="ctc"><H2>Z80 CTC</H2></A>
+
+<P>REMEMOTECH implements a useful approximation to a Z80 CTC
+(<A HREF="http://www.datasheetcatalog.org/datasheet/zilog/Z84C3004.pdf" TARGET="_main">datasheet</A>).
+It is modelled on the CTC implementation in
+<A HREF="http://www.nyangau.org/memu/memu.htm" TARGET="_main">MEMU</A>,
+and so is known to be enough of an implemention to keep all known software
+happy, but it is acknowledged that it is a subset of the real thing.
+It doesn't differentiate between rising and falling edges,
+it doesn't support the "timer trigger" bit,
+and it doesn't support daisy chaining of CTCs (the MTX only had one anyway).
+
+<P>A comparison of CTC inputs :-
+<P>
+<TABLE>
+<TR><TH COLSPAN=2>Input       <TH>Memotech       <TH>REMEMOTECH
+<TR><TD COLSPAN=2>Timer       <TD>4MHz           <TD>4.166MHz
+<TR><TD ROWSPAN=4>Counter<TD>0<TD>VDP interrupt  <TD>VDP interrupt
+<TR>                     <TD>1<TD>4MHz/13 exactly<TD>4MHz/13 approx
+<TR>                     <TD>2<TD>4MHz/13 exactly<TD>4MHz/13 approx
+<TR>                     <TD>3<TD>Cassette       <TD>Unconnected
+</TABLE>
+
+<P>Channels 1 and 2 are typically used to generate clocks for the Z80 DART.
+
+<P>The CTC has a special non-standard hack built-in.
+The PANEL and <CODE>VDEB.COM</CODE> debuggers write to channel 2 and set it
+up in timer mode with a prescaler of 16 and a counter of 13 to ensure there
+is an interrupt raised immediately after the next single stepped instruction.
+This clever trick allows ROM to be single stepped.
+The CTC spots when channel 2 is programmed in this way and then ensures there
+will be an interrupt 13*16=208 CPU clocks later, regardless of the fact
+that the CTC timer input may not match the CPU clock speed.
+Anyone wanting to use my CTC VHDL in their project would need to remove
+this hack.
+
+<P>I wrote this CTC because I was unable to source free VHDL for one.
+<!--...e-->
+<!--...sCassette tape:4:-->
+<A NAME="tape"><H2>Cassette tape</H2></A>
+
+<P>REMEMOTECH does not support loading or saving to cassette tape.
+Almost all of the Memotech library on cassette has been converted into
+<CODE>.MTX</CODE> file format.
+Instead, REMEMOTECH supports "virtual cassette tapes".
+
+<P>A hidden 48KB area of SRAM is used as a read/write virtual cassette tape.
+56 64KB areas of Flash are used as read-only virtual cassette tapes.
+Looking at the known library of Memotech cassettes, almost all of them
+will fit within 48KB.
+
+<P>Virtual cassette tapes are accessed from CP/M using the
+<A HREF="software.htm#retape">RETAPE</A> command.
+<!--...e-->
+<!--...sSerial ports:4:-->
+<A NAME="serial"><H2>Serial ports</H2></A>
+
+<P>REMEMOTECH r3 onwards includes support for a subset of the Z80 DART,
+with these limitations :-
+
+<UL>
+  <LI>It has no support for interrupts
+  <LI>The characters transmitted or received are always 8-bit,
+      regardless of what you program
+  <LI>If you program 1.5 stop bits, the hardware sends 2 stop bits and looks
+      to receive 1 stop bit
+</UL>
+
+<P>Note: CONTACT.COM runs the DART in 8-bit mode with no parity,
+despite the text in CONTACT.DOC referring to 7-bit characters
+with zero, odd or even parity.
+It sets/resets the top bit in software before sending,
+and clears the top bit upon receiving.
+So CONTACT.COM will work with this DART implementation.
+
+<P>At any one time, only serial port A or B is actually connected to the UART
+on the DE1.
+If B is connected (the default), LEDR1 is lit.
+Which one is connected can be toggled using SW2.
+
+<P>On the MTX, RS232 port A is wired as a DCE and port B is wired as a DTE.
+On the DE1, the 9 pin port is wired as a DCE.
+So when connecting a PC (wired as a DTE) to the DE1 (wired as a DCE),
+use a normal serial cable, rather than a null-modem cable.
+
+<P>The <A HREF="software.htm#cpmboot">CP/M boot ROM</A>
+now includes support for Remote Command mode, allowing use of the
+<A HREF="http://www.nyangau.org/remcmd/remcmd.htm" TARGET="_main">ZMON Remote Command mode tool</A>
+to transfer data to and from REMEMOTECH r3.
+<!--...e-->
+<!--...sFloppy Disc Controllers:4:-->
+<A NAME="fdc"><H2>Floppy Disc Controllers</H2></A>
+
+<P>I have no plans to implement floppy disk drive support of either
+the FDX or SDX variety.
+I certainly wouldn't want to hook up real drives to the Altera DE1.
+Just think of the power drain.
+<!--...e-->
+<!--...sSD Card:4:-->
+<A NAME="sdcard"><H2>SD Card</H2></A>
+
+<P>REMEMOTECH can access the SD Card on the DE1 instead.
+SD Cards between 64MB and 1GB are supported.
+Only 64MB of data may be stored on them.
+REMEMOTECH considers them to contain 8 8MB partitions.
+This is somewhat generous, as the entire Memotech software library will
+fit comfortably within one 8MB partition.
+
+<P>It accesses this using the SPI interface.
+It has hardware support for driving the SPI interface so that byte transfer
+speed is effectively limited by the T80.
+It has a novel feature in that reading data from SPI on one port triggers
+the sending of an <CODE>0xff</CODE> byte to trigger the next transfer.
+The means that reading of data from SD Card needn't be twice as slow
+as writing it (as it would otherwise be).
+
+<P>Unfortunately the fact that CP/M sectors are 128 bytes and SD Card blocks
+are 512 bytes makes the whole thing somewhat inefficient.
+To read a 128 byte sector, we must read the enclosing 512 byte block.
+And to write a 128 byte sector, we must read the enclosing 512 byte block,
+modify a part of it, then write it back.
+Even with this handicap, its still usable.
+Clever driver software helps improve things.
+
+<P>LEDR0 flashes when SD Card is being accessed and for a couple of seconds
+afterwards, and the intent is that the user doesn't remove the SD Card
+until the LED goes off.
+This simple feature allows the SD Card driver code to go faster.
+
+<P>Note that the net suggests that 8MB is the largest disk size CP/M 2.2
+can cope with, due to how it does its internal arithmetic.
+Even if you could go larger than this, you'd start to have memory problems,
+as CP/M keeps allocation and check vectors in (scarce) high memory,
+and these are related to the size of the disk.
+<!--...e-->
+<!--...sSilicon Discs:4:-->
+<A NAME="silicon"><H2>Silicon Discs</H2></A>
+
+<P>I had originally planned to support these by mapping I/O requests
+to accesses to SDRAM.
+To do this I would have had to integrate an SDRAM controller.
+
+<P>Back in the day, Silicon Discs were a lot faster than floppy disks,
+but now the benefit of SDRAM access over SD Card access is less clear.
+Also, Silicon Discs could be a lot bigger than floppy disks, but now
+the SD Card support provides access to more storage than there is SDRAM.
+
+<P>In the end I decided it isn't worthwhile to support Silicon Discs.
+As a result, precious high memory has been freed up, which allows
+the user to make effective use of the partitions on SD Cards.
+<!--...e-->
+<!--...s80 column card:4:-->
+<A NAME="80col"><H2>80 column card</H2></A>
+
+<P>REMEMOTECH implements a video card which is largely compatible with
+the original FDX 80 column card.
+
+<P>It outputs in 8 colours to VGA, 640x480 at 60Hz.
+I have no plans to output RGB or Composite video, like the FDX did.
+
+<P>In addition to the normal 80x24 mode, it also supports 80x48 mode.
+To do this it has 8KB of memory, rather than 4KB.
+
+<P>It supports accesses to ports 0x30, 0x31, 0x32, 0x33, 0x38 and 0x39.
+Inputting from port 0x30 does not cause the bell to ring.
+
+<P>It emulates a subset of the
+<A HREF="http://en.wikipedia.org/wiki/Motorola_6845" TARGET="_main">6845 CRTC</A>
+registers (as per
+<A HREF="http://www.classiccmp.org/dunfield/r/6845.pdf" TARGET="_main">datasheet</A>),
+specifically registers 10, 12, 13, 14 and 15.
+In addition, it has REMEMOTECH special register 31, in which bit 0
+controls whether it is 80x24 or 80x48.
+
+<P>The normal Memotech alphanumeric font is present in on-chip ROM in
+the FPGA.
+The graphics characters are programmatically generated from the graphic
+character number, saving 2.5KB of scarce on-chip memory.
+<!--...e-->
+<!--...sAccelerator:4:-->
+<A NAME="accelerator"><H2>Accelerator</H2></A>
+
+<P>The REMEMOTECH r2 or later includes a rudimentary arithmetic accelerator.
+Once enabled this appears in ports 0A0H to 0A5H.
+
+<P>The accelerator uses quite a lot of FPGA resources.
+
+<!--...sData types:4:-->
+<H3>Data types</H3>
+
+<P>It supports 32 bit integers (unsigned and signed).
+
+<P>It also supports the MTX BASIC floating point format.
+This is a 5 byte format, comprised of
+<UL>
+  <LI>a sign bit
+  <LI>31 bits of mantissa
+  <LI>8 bit exponent
+</UL>
+
+<P>A floating point value is of the form :-
+<PRE>
+(-1)^s * 1.m * 2^(e-81H)</PRE>
+
+<P>so 5.0 would be :-
+<PRE>
+(-1)^0 & 1.01 *2^(83H-81H)</PRE>
+
+<P>and would represented by MTX BASIC in memory as :-
+<PRE>
+offset  value  meaning
+0       00     mantissa bits -24..-31
+1       00     mantissa bits -16..-23
+2       00     mantissa bits -8..-15
+3       20     sign is 0, and mantissa bits -1..-7
+4       83     exponent</PRE>
+
+<P>Zero (both integer and floating point) has the special representation
+of <CODE>00 00 00 00 00</CODE>.
+<!--...e-->
+<!--...sStack:4:-->
+<H3>Stack</H3>
+
+<P>The hardware supports an 8 element stack and includes forth-like operations
+to manipulate it.
+
+<P>The <CODE>C_LIT</CODE> operation pushes 0 onto the stack.
+The top-of-stack can then be modified to your desired value
+by writing to ports, or by using other operations that explicitly set it.
+
+<P>The hardware doesn't bounds check the use of the stack.
+Its up to you to ensure you don't push or pop too many times.
+<!--...e-->
+<!--...sOperations:4:-->
+<H3>Operations</H3>
+
+<P>The hardware supports these operations :-
+<UL>
+  <LI>control related -
+      <CODE>C_INIT</CODE> (sets result to <CODE>R_OK</CODE> and empties stack),
+      <CODE>C_OK</CODE> (sets result to <CODE>R_OK</CODE>)
+  <LI>stack related -
+      <CODE>C_LIT</CODE>,
+      <CODE>C_DUP</CODE>,
+      <CODE>C_DROP</CODE>,
+      <CODE>C_SWAP</CODE>,
+      <CODE>C_OVER</CODE>
+  <LI>integer literal related -
+      <CODE>C_1</CODE> (sets top of stack to 1)
+  <LI>integer unary ops -
+      <CODE>C_INEG</CODE>,
+      <CODE>C_INOT</CODE>,
+      <CODE>C_ILSL</CODE>,
+      <CODE>C_ILSR</CODE>,
+      <CODE>C_IASR</CODE>,
+      <CODE>C_IABS</CODE>,
+      <CODE>C_ISGN</CODE>
+  <LI>integer binary ops -
+      <CODE>C_IADD</CODE>,
+      <CODE>C_ISUB</CODE>,
+      <CODE>C_UMUL</CODE>,
+      <CODE>C_SMUL</CODE>,
+      <CODE>C_UDIV</CODE>,
+      <CODE>C_SDIV</CODE>,
+      <CODE>C_UMOD</CODE>,
+      <CODE>C_SMOD</CODE>
+  <LI>integer misc -
+      <CODE>C_HMUL</CODE>
+  <LI>floating point literal related -
+      <CODE>C_1P0</CODE> (sets top of stack to 1.0),
+      <CODE>C_2P0</CODE> (sets top of stack to 2.0),
+      ... and many other useful constants
+  <LI>floating point unary ops -
+      <CODE>C_FNEG</CODE>,
+      <CODE>C_FABS</CODE>,
+      <CODE>C_FSGN</CODE>,
+      <CODE>C_FINT</CODE>
+  <LI>floating point binary ops -
+      <CODE>C_FADD</CODE>,
+      <CODE>C_FSUB</CODE>,
+      <CODE>C_FMUL</CODE>,
+      <CODE>C_FDIV</CODE>
+  <LI>conversions -
+      <CODE>C_UTOF</CODE>,
+      <CODE>C_FTOU</CODE>
+</UL>
+
+<P>Division by zero is detected.
+
+<P>You may wonder why there are separate <CODE>C_UMUL</CODE> and
+<CODE>C_SMUL</CODE>.
+They do produce the same bit pattern, but only in the bottom 32 bits.
+The accelerator computes a full 64 bit product, and you can use the
+<CODE>C_HMUL</CODE> operation to push the high 32 bits on to the stack.
+
+<P>The floating point calculations incorporate rounding, so (1.0/3.0)*3.0 does
+evaluate to 1.0, rather than 0.9999..
+
+<P>The floating point calculations do also detect overflow and underflow
+conditions.
+
+<P>After instructing an operation, reading result register returns
+<CODE>R_BUSY</CODE> until the operation completes, and then it finally returns
+<CODE>R_OK</CODE>, <CODE>R_DIV0</CODE>, <CODE>R_OVER</CODE> or
+<CODE>R_UNDR</CODE>.
+Most operations take a cycle or two, and as this is much quicker than
+the Z80 can issue instructions, there is no point in polling.
+However, the divide and modulo related instructions take 34 cycles.
+<!--...e-->
+<!--...sSample code:4:-->
+<H3>Sample code</H3>
+
+<PRE>
+        INCLUDE PORTS.INC     ; P_ port values
+        INCLUDE NUMACCEL.INC  ; C_ command and R_ result values
+
+; enable accelerator
+        IN      A,(P_RIZEQ)
+        OR      40H
+        OUT     (P_RIZEQ),A
+
+; push 1.0, ie: + 1.0 x 2^0
+        LD      A,C_LIT
+        OUT     (P_NCMD),A
+        LD      A,081H
+        OUT     (P_EXP),A
+        LD      A,000H
+        OUT     (P_MAN3),A
+        OUT     (P_MAN2),A
+        OUT     (P_MAN1),A
+        OUT     (P_MAN0),A
+; push 3.0, ie: + 1.1 x 2^1
+        LD      A,C_LIT
+        OUT     (P_NCMD),A
+        LD      A,082H
+        OUT     (P_EXP),A
+        LD      A,040H
+        OUT     (P_MAN3),A
+        LD      A,000H
+        OUT     (P_MAN2),A
+        OUT     (P_MAN1),A
+        OUT     (P_MAN0),A
+; fdiv
+        LD      A,C_FDIV
+        OUT     (P_NCMD),A
+WAIT:   IN      A,(P_NRES)
+        CP      R_BUSY
+        JR      Z,WAIT
+; with these operands, the result will be R_OK
+; with other operands, could be R_DIV0, R_OVER or R_UNDR
+; query the top-of-stack value
+        IN      A,(P_EXP)     ; will be 7F
+        IN      A,(P_MAN3)    ; will be 2A
+        IN      A,(P_MAN2)    ; will be AA
+        IN      A,(P_MAN1)    ; will be AA
+        IN      A,(P_MAN0)    ; will be AB (note rounding)
+                              ; ie: + 1.01010101.. x 2^-2
+; drop the result
+        LD      A,C_DROP
+        OUT     (P_NCMD),A
+</PRE>
+
+<P><A HREF="software.htm#renumt">RENUMT.COM</A> is a test for the
+accelerator, and
+<A HREF="software.htm#renum">RENUM.COM</A> is a program which
+enables the accelerator and patches the MTX BASIC ROM to use it.
+<!--...e-->
+<!--...e-->
+<!--...sDaughter board:4:-->
+<A NAME="daughter"><H3>Daughter board</H3></A>
+
+<P>REMEMOTECH r3 can use a daughter board which plugs into its GPIO ports.
+This provides a centronics connector, port 7 socket, EEPROM socket,
+and 2nd VGA connector.
+
+<P>This simple <A HREF="daughter.svg">circuit diagram</A> produces :-
+<P><IMG SRC="daughter-3d.jpg">.
+
+<P>The output voltages are 3.3V and this should be acceptable for devices
+expecting TTL signals, and the inputs are 5V tolerant.
+
+<P>The intent with the daughter board concept is to make full use of the GPIOs
+and enable REMEMOTECH to do as much as is reasonably possible.
+<!--...e-->
+<!--...sPrinter:4:-->
+<A NAME="printer"><H2>Printer</H2></A>
+
+<P>As of REMEMOTECH r3, provision is made for driving a Centronics printer.
+I imagine it would be hard to source a Centronics printer nowadays,
+but this feature allows REMEMOTECH r3 to drive a Video Wall.
+
+<P>The <A HREF="#daughter">daughter board</A> has space for a 2x18 connector
+which matches the connector on the MTX motherboard.
+Just like with the MTX motherboard, only the top 2x17 pins should be
+populated.
+<!--...e-->
+<!--...sPort 7:4:-->
+<A NAME="port7"><H2>Port 7</H2></A>
+
+<P>The REMEMOTECH r3 or later includes support for port 7,
+courtesy of the <A HREF="#daughter">daughter board</A>.
+The socket on the daughter card faithfully reproduces the pinout of the
+socket on the MTX motherboard, and the strobe features are implemented.
+
+<P>Be sure to study the Altera DE1 manual before connecting the GPIO header
+to any homebrew electronics.
+<!--...e-->
+<!--...sVGA monitor support:4:-->
+<A NAME="vga"><H2>VGA monitor support</H2></A>
+
+<H3>Single monitor support</H3>
+
+<P>The SW6 switch determines whether the VDP signal or the 80 column card
+signal is output to the VGA connector on the Altera DE1.
+
+<P>This is good enough for most purposes, as usually you are interested
+in the text, or the graphics.
+But occasionally, you might be doing something that would benefit from seeing
+both at the same time, such as using <CODE>VDEB</CODE> to debug a game.
+
+<H3>Dual monitor support</H3>
+
+<P>As of REMEMOTECH r3, whichever signal is not being output to the VGA
+connector is output to the 2nd VGA connector on the
+<A HREF="#daughter">daughter board</A>.
+
+<P>In earlier REMEMOTECH versions,
+I used a 40 pin IDE ribbon cable to a VGA breakout board.
+This only supported 3 bits per pixel for R, G and B.
+And of course, it only supported a 2nd VGA, not all the other connectors.
+<!--...e-->
+<!--...sMisc:4:-->
+<A NAME="misc"><H2>Misc</H2></A>
+
+<P>REMEMOTECH also has other miscellaneous bits of hardware not found on
+real Memotechs.
+Most of these take advantage of bells and whistles on the Altera DE1.
+
+<UL>
+  <LI>Port <CODE>0xc0</CODE> to read/write HEX1 and HEX0 seven segment displays
+  <LI>Port <CODE>0xc1</CODE> to read/write HEX3 and HEX2 seven segment displays
+  <LI>Port <CODE>0xc4</CODE> to read/write LEDG7 to LEDG0 green LEDs
+  <LI>Port <CODE>0xc5</CODE> to read KEY2 to KEY0 (REBOOT reads these)
+  <LI>Port <CODE>0xc7</CODE> to read PS/2 various special number pad keys (REMON reads these)
+</UL>
+<!--...e-->
+
+  </BODY>
+</HTML>

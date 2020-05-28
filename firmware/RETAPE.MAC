@@ -1,0 +1,566 @@
+.Z80
+ASEG
+;
+;
+;
+;		*****************************************
+;		*					*
+;		*	REMEMOTECH VIRTUAL TAPE		*
+;		*					*
+;		*****************************************
+;
+; Written Apr 2012, A.Key
+;
+; Version
+;
+@V1	EQU	1
+@V2	EQU	1
+;
+; General equates
+;
+LF	EQU	0AH
+CR	EQU	0DH
+EOF	EQU	1AH
+;
+; CP/M BDOS equates
+;
+BDOS	EQU	0005H
+PRINTF	EQU	9
+OPENF	EQU	15
+CLOSEF	EQU	16
+DELFIL	EQU	19
+RSEQ	EQU	20
+WSEQ	EQU	21
+MAKFIL	EQU	22
+SETDMA	EQU	26
+FCB1	EQU	005CH
+FCB2	EQU	006CH
+;
+	INCLUDE	PORTS.INC
+;
+	ORG	100H
+;
+START::
+;
+;The following version number string is harmless code.
+;
+	DB	CR,LF,'*V',@V1+'0','.',@V2+'0',CR,LF,EOF
+;
+; Check we running on the right kind of hardware
+;
+	LD	DE,MSGHW
+	LD	A,(0FFC1H)
+	CP	'R'
+	JP	NZ,ERROR
+	LD	A,(0FFC2H)
+	CP	'E'
+	JP	NZ,ERROR
+	LD	A,(0FFC3H)
+	CP	'M'
+	JP	NZ,ERROR
+;
+; We need some of our code to be above 04000H because we will be playing around
+; with the memory map quite a lot, lower memory will be paged out.
+;
+	LD	HL,HIGHS
+	LD	DE,HIGHD
+	LD	BC,HIGHE-HIGHD
+	LDIR
+;
+; Ensure that when we are in RAM page 14 or 15 the page visible at
+; 04000H..07FFFH is still the same page as in IOBYTE=080H mode.
+;
+	LD	A,2
+	OUT	(P_PAGE1),A
+;
+; what are we required to do?
+;
+	LD	A,(FCB1+1)
+	CP	'?'
+	JR	Z,USAGE
+	CP	' '
+	JP	Z,LIST
+	LD	A,(FCB2+1)
+	CP	' '
+	JP	Z,ERASE
+	LD	A,(FCB1+1+8)
+	CP	' '
+	JP	Z,READ
+	LD	A,(FCB2+1+8)
+	CP	' '
+	JP	Z,WRITE
+;
+USAGE:	LD	C,PRINTF
+	LD	DE,MSGUSE
+	CALL	BDOS
+	RST	0
+
+;
+MSGUSE:	DB	'Usage: A>RETAPE                  show tape content in each slot',CR,LF
+	DB	'   or: A>RETAPE slot             erase content in specified slot',CR,LF
+	DB	'   or: A>RETAPE INPUT.MTX slot   copy file to specified slot',CR,LF
+	DB	'   or: A>RETAPE slot OUTPUT.MTX  copy contents of slot to file',CR,LF
+	DB	'   or: A>RETAPE ?                this help text',CR,LF
+	DB	'$'
+;
+; List
+;
+LIST:	LD	C,PRINTF
+	LD	DE,MSGLST
+	CALL	BDOS
+;
+	XOR	A
+	LD	BC,00E09H
+	CALL	LIST4
+;
+	LD	C,PRINTF
+	LD	DE,MSGLS2
+	CALL	BDOS
+;
+	LD	A,1
+	LD	BC,00F20H
+LIST2:	CALL	LIST4
+
+	PUSH	AF
+	PUSH	BC
+	LD	DE,MSGSL3
+	LD	A,C
+	AND	12
+	CP	12
+	JR	NZ,LIST3
+	LD	DE,MSGSL4
+LIST3:	LD	C,PRINTF
+	CALL	BDOS
+	POP	BC
+	POP	AF
+
+	INC	A
+	INC	C
+	INC	C
+	INC	C
+	INC	C
+	JR	NZ,LIST2
+	RST	0
+; list one
+LIST4:	PUSH	AF
+	PUSH	BC
+	PUSH	HL
+; slot number
+	LD	E,'0'
+LIST6:	CP	10
+	JR	C,LIST8
+	INC	E
+	SUB	10
+	JR	LIST6
+LIST8:	ADD	A,'0'
+	LD	D,A
+	LD	(MSGSLT),DE
+; get header
+	CALL	GETHDR
+; header as text
+	LD	HL,BUFFER+1
+	LD	DE,MSGSL2
+	LD	B,15
+LIST10:	LD	A,(HL)
+	CP	'$'
+	JR	Z,LIST12
+	CP	' '
+	JR	C,LIST12
+	CP	'~'+1
+	JR	C,LIST14
+LIST12:	LD	A,'.'
+LIST14:	LD	(DE),A
+	INC	HL
+	INC	DE
+	DJNZ	LIST10
+; display
+	LD	C,PRINTF
+	LD	DE,MSGSLT
+	CALL	BDOS
+	POP	HL
+	POP	BC
+	POP	AF
+	RET
+;
+MSGLST:	DB	CR,LF,17,'Virtual Cassette Tape content',22,CR,LF,CR,LF
+	DB	'LOAD/SAVE slot (48KB)',CR,LF
+	DB	'$'
+MSGLS2:	DB	CR,LF,CR,LF,'LOAD slots (64KB)',CR,LF
+	DB	'$'
+MSGSLT:	DB	'xx:',19
+MSGSL2:	DB	'xxxxxxxxxxxxxxx',22,'$'
+MSGSL3:	DB	'  $'
+MSGSL4:	DB	CR,LF,'$'
+;
+; Erase
+;
+ERASE:	LD	HL,FCB1+1
+	CALL	GETA
+	CP	56+1
+	LD	DE,MSGBSL
+	JP	NC,ERROR
+	AND	A
+	JR	NZ,ERASE4
+; erase 48KB SRAM
+	CALL	WIPES
+	RST	0	
+; erase 64KB Flash
+ERASE4:	CALL	WIPEF
+	RST	0
+
+;
+; Read from a slot to a file
+;
+READ:	LD	HL,FCB1+1
+	CALL	GETA
+	CP	56+1
+	LD	DE,MSGBSL
+	JP	NC,ERROR
+	AND	A
+	JR	NZ,READ2
+; copy SRAM to file
+	LD	BC,00E09H
+	LD	DE,384		; 384*128=48KB
+	JR	READ4
+; copy Flash to file
+READ2:	DEC	A
+	SLA	A
+	SLA	A
+	ADD	A,020H
+	LD	C,A
+	LD	B,00FH
+	LD	DE,512		; 512*128=64KB
+; create file
+READ4:	PUSH	BC
+	PUSH	DE
+	LD	C,DELFIL
+	LD	DE,FCB2
+	CALL	BDOS
+	XOR	A
+	LD	(FCB2+12),A	; EX=0
+	LD	(FCB2+32),A	; CR=0
+	LD	C,MAKFIL
+	LD	DE,FCB2
+	CALL	BDOS
+	INC	A
+	LD	DE,MSGMAK
+	JP	Z,ERROR
+	LD	C,SETDMA
+	LD	DE,BUFFER
+	CALL	BDOS
+	POP	DE
+	POP	BC
+	LD	HL,0
+; per sector
+READ6:	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+; read sector
+	CALL	READS
+; write sector
+	LD	C,WSEQ
+	LD	DE,FCB2
+	CALL	BDOS
+	AND	A
+	LD	DE,MSGWRT
+	JP	NZ,ERROR
+; next sector
+	POP	HL
+	LD	DE,128
+	ADD	HL,DE
+	POP	DE
+	POP	BC
+	DEC	DE
+	LD	A,D
+	OR	E
+	JR	NZ,READ6
+; close file
+	LD	C,CLOSEF
+	LD	DE,FCB2
+	CALL	BDOS
+	RST	0
+
+;
+; Write from a file to a slot
+;
+WRITE:	LD	HL,FCB2+1
+	CALL	GETA
+	CP	56+1
+	LD	DE,MSGBSL
+	JP	NC,ERROR
+	AND	A
+	JR	NZ,WRITE2
+; copy file to SRAM
+	LD	BC,00E09H
+	LD	DE,384		; 384*128=48KB
+	JR	WRITE4
+; copy file to Flash
+WRITE2:	PUSH	AF
+	CALL	WIPEF		; must wipe slot before can write to it
+	POP	AF
+	DEC	A
+	SLA	A
+	SLA	A
+	ADD	A,020H
+	LD	C,A
+	LD	B,00FH
+	LD	DE,512		; 512*128=64KB
+; open file
+WRITE4:	PUSH	BC
+	PUSH	DE
+	XOR	A
+	LD	(FCB1+12),A	; EX=0
+	LD	(FCB1+32),A	; CR=0
+	LD	C,OPENF
+	LD	DE,FCB1
+	CALL	BDOS
+	INC	A
+	LD	DE,MSGOPN
+	JP	Z,ERROR
+	LD	C,SETDMA
+	LD	DE,BUFFER
+	CALL	BDOS
+	POP	DE
+	POP	BC
+	LD	HL,0
+; per sector
+WRITE6:	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	LD	C,RSEQ
+	LD	DE,FCB1
+	CALL	BDOS
+	POP	HL
+	POP	DE
+	POP	BC
+;
+	AND	A
+	JR	NZ,WRITE8
+;
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	CALL	WRITES
+
+; next sector
+	POP	HL
+	LD	DE,128
+	ADD	HL,DE
+	POP	DE
+	POP	BC
+	DEC	DE
+	LD	A,D
+	OR	E
+	JR	NZ,WRITE6
+; no more space, is there more file
+	LD	C,RSEQ
+	LD	DE,FCB1
+	CALL	BDOS
+	CP	1
+	LD	DE,MSGOVR
+	JP	NZ,ERROR
+; there was no more file, so ok
+	JR	WRITE9
+; error reading
+WRITE8:	CP	1			; EOF
+	LD	DE,MSGRD
+	JP	NZ,ERROR
+; close file
+WRITE9:	LD	C,CLOSEF
+	LD	DE,FCB1
+	CALL	BDOS
+	RST	0
+
+; get a number
+GETA:	LD	C,0
+GETA2:	LD	A,(HL)
+	SUB	'0'
+	JR	C,GETA4
+	CP	10
+	JR	NC,GETA4
+	SLA	C			; *2
+	ADD	A,C
+	SLA	C			; *4
+	SLA	C			; *8
+	ADD	A,C
+	LD	C,A
+	INC	HL
+	JR	GETA2
+GETA4:	LD	A,C
+	RET
+
+;
+; Display error at DE and exit
+;
+ERROR:	LD	C,PRINTF
+	CALL	BDOS
+	RST	0
+;
+; Error messages
+;
+MSGHW:	DB	23,'This program only works on REMEMOTECH',22,CR,LF,'$'
+MSGBSL:	DB	23,'Bad slot number, must be between 0 and 56 inclusive',22,CR,LF,'$'
+MSGMAK:	DB	23,'Error creating file',22,CR,LF,'$'
+MSGWRT:	DB	23,'Error writing file',22,CR,LF,'$'
+MSGOPN:	DB	23,'Error opening file',22,CR,LF,'$'
+MSGRD:	DB	23,'Error reading file',22,CR,LF,'$'
+MSGOVR:	DB	23,'File is too big to fit in slot',22,CR,LF,'$'
+
+; -----
+
+HIGHS::
+
+.PHASE	04000H
+
+HIGHD::
+
+;
+; Get header for IOBYTE B, page register C
+;
+GETHDR:	DI
+	LD	A,B
+	OUT	(P_IOB),A
+	LD	A,C
+	OUT	(P_PAGE2),A
+	LD	HL,08000H
+	LD	DE,BUFFER
+	LD	BC,16
+	LDIR
+	LD	A,080H
+	OUT	(P_IOB),A
+	EI
+	RET
+;
+; Wipe SRAM
+;
+WIPES:	DI
+	LD	A,00EH
+	OUT	(P_IOB),A
+	LD	BC,00309H
+WIPES2:	PUSH	BC
+	LD	A,C
+	OUT	(P_PAGE2),A
+	LD	HL,08000H
+	LD	DE,08001H
+	LD	BC,03FFFH
+	LD	(HL),0
+	LDIR
+	POP	BC
+	INC	C
+	DJNZ	WIPES2
+	LD	A,080H
+	OUT	(P_IOB),A
+	EI
+	RET
+;
+; Wipe Flash slot A
+;
+WIPEF:	PUSH	AF
+	LD	A,00FH
+	DI
+	OUT	(P_IOB),A
+	POP	AF
+	DEC	A
+	SLA	A
+	SLA	A
+	ADD	A,020H
+	OUT	(P_PAGE2),A
+	LD	A,0F0H		; reset flash block state machine
+	LD	(08AAAH),A
+	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,080H
+	LD	(08AAAH),A
+	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,030H		; erase block
+	LD	(08000H),A	; flash block implied from memory map
+	LD	B,255
+WIPEF2:	DJNZ	WIPEF2		; erase delay
+WIPEF4:	LD	A,(08000H)
+	BIT	7,A
+	JR	Z,WIPEF4	; erase wait done
+	LD	A,080H
+	OUT	(P_IOB),A
+	EI
+	RET
+;
+; Read sector, address HL, IOBYTE A, page register C
+;
+READS:	DI
+	LD	A,B
+	OUT	(P_IOB),A
+	LD	A,H
+	RLCA
+	RLCA
+	AND	3
+	ADD	A,C
+	OUT	(P_PAGE2),A
+	SET	7,H
+	RES	6,H
+	LD	DE,BUFFER
+	LD	BC,128
+	LDIR
+	LD	A,080H
+	OUT	(P_IOB),A
+	EI
+	RET
+;
+; Write sector, address HL, IOBYTE B, page register C
+;
+WRITES:	DI
+	LD	A,B
+	OUT	(P_IOB),A
+	LD	A,H
+	RLCA
+	RLCA
+	AND	3
+	ADD	A,C
+	OUT	(P_PAGE2),A
+	EX	DE,HL
+	SET	7,D
+	RES	6,D
+	LD	HL,BUFFER
+;
+	BIT	0,B
+	JR	NZ,WRITS2
+; copy file to SRAM
+	LD	BC,128
+	LDIR
+	JR	WRITS8
+; copy file to Flash
+WRITS2:	LD	B,128
+WRITS4:	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,0A0H		; write byte
+	LD	(08AAAH),A
+	LD	A,(HL)
+	LD	(DE),A
+WRITS6:	LD	A,(DE)
+	CP	(HL)
+	JR	NZ,WRITS6
+	INC	HL
+	INC	DE
+; done byte
+	DJNZ	WRITS4
+;
+WRITS8:	LD	A,080H
+	OUT	(P_IOB),A
+	EI
+	RET
+
+;
+BUFFER:	DS	128
+
+HIGHE::
+;
+.DEPHASE
+
+;
+END

@@ -1,0 +1,3 @@
+Icicle Works only works properly if run from a 54K version of CP/M.
+I don't yet know why, and its quite hard to debug.
+So under REMEMOTECH, interrupt ZMON, use BC19, then SUB ICICLE.

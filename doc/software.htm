@@ -1,0 +1,444 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Software</H1>
+
+    <P>Here we describe the software in REMEMOTECH :-
+    <UL>
+      <LI><A HREF="#reboot">REBOOT</A>
+      <LI><A HREF="#remon">REMON</A>
+      <LI><A HREF="#os">OS ROM</A>
+      <LI><A HREF="#basic">BASIC ROM</A>
+      <LI><A HREF="#assem">ASSEM ROM</A>
+      <LI><A HREF="#cpmboot">CP/M boot ROM</A>
+      <LI><A HREF="#sdxbasic">SDX BASIC ROM</A>
+      <LI><A HREF="#cpmutils">CP/M utilities</A>
+      <LI><A HREF="#ramdisc">Initial RAM Disc</A>
+      <LI><A HREF="#sddisc">Sample SD Card</A>
+    </UL>
+
+<!--...sREBOOT:4:-->
+<A NAME="reboot"><H2>REBOOT</H2></A>
+
+<P>REBOOT is the REMEMOTECH boot code.
+
+<P>It is stored in on-chip memory in the FPGA.
+It is the very first thing the T80 processor executes after a system reset.
+
+<P>The Memotech ROMs and the initial RAM Disc image are too large to store
+in on-chip memory, and so they are stored in Flash memory.
+
+<P>REBOOTs purpose in life is to allow you to :-
+<UL>
+  <LI>Copy a 512KB image containing ROM images and initial RAM Disc
+      from SD Card to Flash memory
+  <LI>Copy the ROM images from Flash memory to an area of SRAM,
+      which is accessible in the MTX memory map as ROMs
+  <LI>Copy the initial RAM Disc image from Flash memory to SRAM,
+      which is accessible in the MTX memory as RAM pages
+      (above the first 64KB of RAM)
+</UL>
+
+<P>REMEMOTECH is rebooted by powering it on, or by pressing KEY3, or by
+pressing both Windows keys either side of the space bar at the same time.
+
+<P>If when reset happens, KEY2 is also pressed, SD Card is copied to Flash.
+While this is happening, the seven-segment displays will display
+<CODE>20xx</CODE>, where <CODE>xx</CODE> is the 16KB page being flashed.
+If the SD Card cannot be accessed, the displays will show <CODE>EE01</CODE>.
+If the SD Card cannot be initialised, the displays will show <CODE>EE02</CODE>.
+If the SD Card cannot be read, the displays will show <CODE>EE03</CODE>.
+
+<P>If when reset happens, KEY1 is also pressed, ROM images are copied from
+Flash to SRAM.
+While this is happening, the seven-segment displays will display
+<CODE>10xx</CODE>, where <CODE>xx</CODE> is the 16KB page being copied.
+
+<P>If when reset happens, KEY0 is also pressed, the initial RAM Disc image
+is copied from Flash to SRAM.
+While this is happening, the seven-segment displays will display
+<CODE>00xx</CODE>, there <CODE>xx</CODE> is the 16KB page being copied.
+
+<P>After this, REBOOT will then check that REMON is present, and jump to it.
+If REMON is not present, the displays will show <CODE>EEFF</CODE>.
+<!--...e-->
+<!--...sREMON:4:-->
+<A NAME="remon"><H2>REMON</H2></A>
+
+<P>REMON is the REMEMOTECH monitor.
+Think of it like a BIOS.
+
+<P>It is one of the ROM images initially introduced via the SD Card,
+which gets stored on Flash.
+It is not visible to the T80 processor via the usual MTX memory map.
+Instead it is visible via the RELCPMH=1, RAM Page 15 special backdoor
+onto any page of SRAM.
+In this case, REMON sits in the top 8KB of SRAM page 8.
+Therefore, from the processor point of view, it starts from
+<CODE>0x6000</CODE> in memory.
+
+<P>Ordinarily, REMON does nothing special.
+However, if on booting, a special key is pressed, it gets control.
+A special key is one of the number pad keys which do not correspond to
+an MTX keyboard key, such as NumEnter.
+Today REMON is exited by pressing a special key again.
+
+<I>
+<P>Ultimately REMON will provide a command line shell with diagnostic
+commands to do things like read and write memory, input and output to ports,
+and read and write the SD Card.
+</I>
+
+<P>When REMON is done, it selects RELCPMH=0, ROM Page 0, RAM Page 0,
+and jumps to <CODE>0x0000</CODE>, thus initiating the normal Memotech
+boot sequence.
+<!--...e-->
+<!--...sOS ROM:4:-->
+<A NAME="os"><H2>OS ROM</H2></A>
+
+<P>The OS ROM sits in the fixed ROM page.
+
+<P>It is the patched version which does not do a memory check by writing
+a pattern on RAM pages, and reading it back.
+As a result, it will not corrupt the RAM Disc.
+This is the version used in SDX systems which support CP/M.
+
+<P>This ROM is also patched so that the INOUT cassette routine at
+<CODE>0x0aae</CODE> copies from "virtual cassette tape", which is in fact a
+hidden area of SRAM, or areas of Flash memory.
+<!--...e-->
+<!--...sBASIC ROM:4:-->
+<A NAME="basic"><H2>BASIC ROM</H2></A>
+
+<P>The BASIC ROM sits in ROM page 0.
+<!--...e-->
+<!--...sASSEM ROM:4:-->
+<A NAME="assem"><H2>ASSEM ROM</H2></A>
+
+<P>The ASSEM ROM sits in ROM page 1.
+<!--...e-->
+<!--...sCP\47\M boot ROM:4:-->
+<A NAME="cpmboot"><H2>CP/M boot ROM</H2><A>
+
+<P>The CP/M boot ROM sits in ROM page 4.
+
+<P>It is different to the version found in an FDX or found in an SDX with
+CP/M support, and has been specially developed for REMEMOTECH.
+It is constructed from the same code base, but with customisations.
+A similar version is used on REMEMOrizer.
+
+<P>It is broken into a number of modules.
+
+<P>The AZMON module is the initial monitor.
+It is modified to boot F:52, B:18, B:19, ..., B:1F.
+It always loads the RAM Disc support, whether you boot from it or not.
+If both Shift keys are pressed during resetting,
+it doesn't boot CP/M and returns to BASIC instead.
+
+<P>As REMEMOTECH r3 includes <A HREF="hardware.htm#serial">serial port</A>
+support, AZMON now includes the code for the Remote Command mode.
+You can use the
+<A HREF="http://www.nyangau.org/remcmd/remcmd.htm" TARGET="_main">ZMON Remote Command mode tool</A>
+to transfer data to and from REMEMOTECH r3.
+
+<P>The ASDXKBD module is the keyboard driver.
+It has been modified to detect the speed that REMEMOTECH is running at,
+and choose a keyboard debounce value suitable for that speed.
+Without this, due to the way the keyboard routine is level rather than
+edge driven, and the way debouncing is done, keyboard bounce is
+terrible at high speed.
+
+<P>ACRT is the 80 column card driver.
+This has been modified so that it knows that the REMEMOTECH screen buffer
+has 4096 character cells (rather than the 2048 in a normal card).
+It also supports a new 80x48 mode as well as the 80x24 mode.
+It provides new escape codes <CODE>^[Y</CODE> and <CODE>^[Z</CODE>
+to switch into 80x24 or 80x48 mode.
+
+<P>ASDCARD is the replacement for the usual floppy disc driver code
+found in normal Memotech FDX and SDX systems.
+It supports a single 8MB size of disk, but through the use of 8 drive
+type codes (18..1F) allows you to access 8 8MB partitions of the SD Card.
+
+<P>The SD Card hardware turns on LEDR0 when the SD Card is accessed and
+flashes it for a couple of seconds afterwards, and the user should not
+remove or change the SD Card until it goes off.
+The driver reads a port which tells it that the card was accessed in the
+last second, and if so, it can assume that whatever sector it read last
+is still what it would get if it read that sector again.
+In this way, sequential reads of N 128 byte sectors only result in
+N/4 512 byte block reads (instead of N 512 byte block reads).
+Also, sequential writes of N 128 byte sectors only result in
+N/4 512 byte block reads and N block writes
+(instead of N 512 byte block reads and N 512 byte writes).
+This feature produces a measurable speed increase, perhaps as much as 2x.
+
+<P>The ARAM module provides RAM Disc support.
+It is a subset of the SIDISC module in the original Memotech computers,
+which supported Silicon Disc and RAM Disc.
+256KB type 50 RAM Discs are supported.
+512KB type 51 RAM Discs are not supported - there isn't enough memory.
+A special 320KB type 52 has been defined so as to make full use of the
+memory available on REMEMOTECH.
+Conveniently this exactly matches the type 03 floppy in size and geometry.
+
+<P>ARAM is present in memory, whether you boot from RAM Disc or not.
+There is no need for a <CODE>SIDISC.COM</CODE> program.
+<!--...e-->
+<!--...sSDX BASIC ROM:4:-->
+<A NAME="sdxbasic"><H2>SDX BASIC ROM</H2></A>
+
+<P>The SDX BASIC ROM sits in ROM page 5.
+
+<P>The SDX ROM in a real SDX provides USER commands to MTX BASIC,
+allowing the user to read and write files on a floppy disk.
+The SDX ROM in REMEMOTECH is different to the version found in a
+real SDX and has been specially developed.
+A similar version is used on REMEMOrizer.
+A real SDX ROM was disassembled and symbols and comments were retrofitted
+by consulting a PDF of a printout of the SDX ROM source.
+After establishing the original ROM could be generated from the source,
+customisations relating to REMEMOTECH were applied.
+
+<P>Instead of floppy disc, it supports SD Card partition 0.
+Unlike the original SDX ROM, this version also supports 320KB RAM Disc.
+In other words, the drive configuration supported is
+<CODE>B:18,F:52</CODE>.
+
+<P>To support these disk types, it was necessary to steal areas of high memory
+that would otherwise be used by the NODE RING ROM.
+This support is therefore incompatible with the NODE RING ROM,
+which is not a real issue, as REMEMOTECH doesn't have any ring hardware.
+
+<P>Remember, to use the SDX support, you must first use <CODE>ROM 5</CODE>.
+The first drive (SD Card partition 0) must contain a 59K CP/M system.
+If this is not the case, you'll get a <CODE>DISC ERROR</CODE>.
+
+<P>If you try to use <CODE>USER FORMAT</CODE>, you will get a
+<CODE>Mistake</CODE> error.
+Track and sector based formatting doesn't make sense for SD Card or
+RAM Disc media.
+Instead use the <CODE>REFORMAT.COM</CODE> CP/M executable.
+<!--...e-->
+<!--...sCP\47\M utilities:4:-->
+<A NAME="cpmutils"><H2>CP/M utilities</H2></A>
+
+<!--...sRECONFIG\46\COM:4:-->
+<A NAME="reconfig"><H3>RECONFIG.COM</H3></A>
+
+<P><CODE>RECONFIG.COM</CODE> is a version of <CODE>CONFIG.COM</CODE>,
+but enhanced for REMEMOTECH and REMEMOrizer.
+
+<P>It gives give better error messages.
+
+<P>It has been enhanced to support extra drive types.
+It supports type 18..1F drives, which are 8MB SD Card partitions.
+Do not configure two drives with the same 1x type code,
+<B>as this can cause data corruption</B>.
+It also supports type 52 drives, which are 320KB RAM Discs.
+
+<P>Every time you configure or change a drive type,
+high memory is allocated for the allocation and check vectors.
+High memory is in short supply, and after configuring and reconfiguring
+lots of drives, you can run out.
+This issue can eased by using a 54K system disk, rather than 59K.
+This is made worse in REMEMOTECH and REMEMOrizer, as in order to access more
+of the SD Card, you may find yourself configuring and reconfiguring a drive
+to access different partitions on it.
+The included <CODE>RECONFIG.COM</CODE> is enhanced to spot reconfiguring
+a drive to a new type code with the same DPB (which implies the same geometry),
+and if so, it reuses the existing allocations and check vectors.
+
+<P>The new <CODE>RECONFIG.COM</CODE> is a superset of the original shipped
+by Memotech, and can actually be used on earlier Memotech systems.
+<!--...e-->
+<!--...sREFORMAT\46\COM:4:-->
+<A NAME="reformat"><H3>REFORMAT.COM</H3></A>
+
+<P>Back in the day, there were 3 different formatting programs :-
+<UL>
+  <LI><CODE>FORMAT.COM</CODE> - for FDX floppy disks, hard disks and Silicon Discs
+  <LI><CODE>FRMSDX.COM</CODE> - for SDX floppy disks
+  <LI><CODE>SIDFMT.COM</CODE> (ie: <CODE>FORMAT.COM</CODE> renamed) - for Silicon Disc or RAM Disc on either FDX or SDX
+</UL>
+
+<P>REMEMOTECH includes <CODE>REFORMAT.COM</CODE> which doesn't issue hardware
+level formatting commands, and instead it overwrites the reserved tracks and
+directory area with sectors containing <CODE>0xe5</CODE> bytes.
+This can therefore be used to "format" the RAM Disc and SD Card
+found on REMEMOTECH.
+None of the original formatting programs are therefore needed,
+none of them work, and so none of them are included.
+
+<P><CODE>REFORMAT.COM</CODE> can be used on an original Memotech system to
+wipe a disk, providing the disk is already formatted to the right type code.
+<!--...e-->
+<!--...sRETAPE\46\COM:4:-->
+<A NAME="retape"><H3>RETAPE.COM</H3></A>
+
+<P><CODE>RETAPE.COM</CODE> is a program for managing the virtual cassette
+tapes feature in REMEMOTECH.
+It is much like the <CODE>REZTAPE.COM</CODE> program used to do the same
+thing on REMEMOrizer.
+
+<P>There is one 48KB SRAM slot (slot number 0)
+and 56 64KB Flash slots (slot numbers 1 to 56).
+
+<P>The following commands can be used :-
+<DL>
+  <DT><CODE>RETAPE</CODE>
+    <DD>List bytes 1-15 of each virtual cassette tape in each slot.
+        ie: the name to LOAD from MTX BASIC.
+  <DT><CODE>RETAPE slot</CODE>
+    <DD>Delete the contents of the indicated slot.
+  <DT><CODE>RETAPE INPUT.MTX slot</CODE>
+    <DD>Read file INPUT.MTX and write it into the indicated slot.
+        Note: The file cannot be larger than the size of the slot.
+  <DT><CODE>RETAPE slot OUTPUT.MTX</CODE>
+    <DD>Read the indicated slot and write to a file called OUTPUT.MTX.
+        Note: The resulting file will be the size of the slot,
+        regardless of how many bytes have been saved to that virtual
+        cassette tape.
+  <DT><CODE>RETAPE ?</CODE>
+    <DD>Show help text, summarising the above.
+</DL>
+
+<P>The INOUT routine in the MTX BASIC ROM has been patched so that :-
+<DL>
+  <DT><CODE>LOAD ""</CODE>
+    <DD>Loads from slot 0.
+  <DT><CODE>LOAD "NAME"</CODE>
+    <DD>Looks for NAME in slots 0 to 56 and loads it.
+        If no slot has this name, then a "No data" error results
+        (a real Memotech MTX just keeps reading hoping that
+        it will eventually find a saved file with this name,
+        but REMEMOTECH knows it is not present and so gives up).
+  <DT><CODE>VERIFY ""</CODE>
+    <DD>Verifies against the data in slot 0.
+  <DT><CODE>VERIFY "NAME"</CODE>
+    <DD>Looks for NAME in slots 0 to 56 and verifies against it.
+        If no slot has this name, then a "No data" error results.
+  <DT><CODE>SAVE "NAME"</CODE>
+    <DD>Saves to slot 0.
+</DL>
+
+<P>The recommended approach to use is to use <CODE>RETAPE.COM</CODE> to write
+a selection of popular games to slots 1-56.
+See <CODE>TAPES.SUB</CODE> mentioned below.
+Then, when you wish to load something else, write it to slot 0
+before switching to MTX BASIC.
+If you save anything from MTX BASIC, boot to CP/M afterwards and use
+<CODE>RETAPE.COM</CODE> to read slot 0 and write to a <CODE>.MTX</CODE> file.
+<!--...e-->
+<!--...sMTX\46\COM\44\ MTXL\46\COM and RUN\46\COM:4:-->
+<H3>MTX.COM, MTXL.COM and RUN.COM</H3>
+
+<P>It also has the <CODE>MTX.COM</CODE> and <CODE>MTXL.COM</CODE> programs,
+which can be used to switch into MTX BASIC.
+<CODE>MTXL.COM</CODE> is preferred, as it does not corrupt RAM Disc in the
+transition.
+
+<P><CODE>RUN.COM</CODE> is a CP/M program which can be used to run some
+<CODE>.RUN</CODE> files, without having to switch into MTX BASIC, and use
+the SDX ROM to <CODE>USER RUN "FILE.RUN"</CODE> them.
+This program puts the file content directly into memory, switches into
+the right memory mode, and jumps to the start of the program.
+This means that MTX BASIC has never been running, and has not set up any
+of its system variables.
+As a result, some <CODE>.RUN</CODE> files may not run properly this way.
+<!--...e-->
+<!--...sRENUMT\46\COM:4:-->
+<A NAME="renumt"><H3>RENUMT.COM</H3></A>
+
+<P>This is a program designed to test the
+<A HREF="hardware.htm#accelerator">numeric accelerator</A>
+built in to REMEMOTECH r2 or later.
+Its only likely to be interest to the author.
+<!--...e-->
+<!--...sRENUM\46\COM:4:-->
+<A NAME="renum"><H3>RENUM.COM</H3></A>
+
+<P>This program will enable the
+<A HREF="hardware.htm#accelerator">numeric accelerator</A>
+built in to REMEMOTECH r2 or later.
+and then patch the MTX OS ROM and BASIC ROM 0 to use it.
+This change lasts until power off.
+
+<P>At this time, RENUM patches the calculator routines in the ROM which
+do addition, subtraction, multiplication and division.
+
+<P>It is interesting to note that although the hardware detects underflow
+conditions, the MTX ROM treats these as a zero result.
+
+<P>As a speed trial, various Memotech
+<A HREF="http://www.nyangau.org/mand/mand.htm" target="_main">Mandlebrot set generators</A>
+were developed and compared.
+
+<P>Summary: if you are serious about doing floating-point on a Memotech MTX,
+you'll only get a little speed-up using RENUM.
+You'll need to code in assembler, and ideally bypass the MTX BASIC ROM
+calculator routines and directly interact with the numeric accelerator
+to get the best performance.
+
+<I>
+<P>There is scope to do more.
+I can probably significantly accelerate functions such as
+exp, ln, sin, cos and tan, by exploiting the fact the hardware has
+a built-in hardware stack, and many built-in constants.
+The tricky bit is patching the ROM and keeping it working.
+</I>
+<!--...e-->
+<!--...e-->
+<!--...sInitial RAM Disc:4:-->
+<A NAME="ramdisc"><H2>Initial RAM Disc</H2></A>
+
+<P>The initial RAM Disc image is a 320KB type 52 CP/M 2.2 filesystem,
+in the file <CODE>ramdisc.bin</CODE>.
+
+<P>It has a 59KB CP/M system in the first 2 tracks.
+It contains <CODE>PIP.COM</CODE>, <CODE>STAT.COM</CODE>, <CODE>ZSID.COM</CODE>
+and a few other general CP/M files.
+
+<P>It has <CODE>RECONFIG.COM</CODE>, <CODE>REFORMAT.COM</CODE> and
+<CODE>RETAPE.COM</CODE>.
+It runs <CODE>RECONFIG F:52,B:18,C:19</CODE> on startup.
+
+<P>The image also includes the normal FDX 80x24 NewWord,
+and a version patched for the 80x48 screen size.
+<!--...e-->
+<!--...sSample SD Card:4:-->
+<A NAME="sddisc"><H2>Sample SD Card</H2></A>
+
+<P>The package includes a couple of sample SD Card images,
+in the file <CODE>sddisc.bin</CODE> and <CODE>sddisc2.bin</CODE>.
+They are 8MB SD Card partitions with CP/M 2.2 filesystems.
+The first has a 59K CP/M system on it, the second has 54K.
+If you copy them to the first and second 8MB of a SD Card,
+you can access them by configuring type 18 and type 19 drives.
+
+<P>These images have the same files found on the Initial RAM Disc
+and assorted extra files.
+
+<P>The first image has various games in <CODE>.COM</CODE> format.
+There are also a few games in <CODE>.RUN</CODE> file format,
+most of which can be run using the <CODE>RUN.COM</CODE> program.
+There are also some SDX BASIC <CODE>.BAS</CODE> files.
+It also has lots of <CODE>.MTX</CODE> files and a submit script called
+<CODE>TAPES.SUB</CODE>, allowing you to load them all up into virtual
+cassette slots in one command :-
+<PRE>
+A&gt;SUB TAPES</PRE>
+
+<P>The second image has Icicle Works, which needs a 54K CP/M system to work.
+I've never got to the bottom of why this is, and its tricky to debug.
+Interrupt the CP/M bootstrap by holding down Enter, then type BC19 to
+boot from the second partition, then run <CODE>DT.COM</CODE> followed by
+<CODE>TLOAD.COM</CODE> followed by <CODE>TV.COM</CODE>.
+Or type <CODE>SUB ICICLE</CODE>.
+<!--...e-->
+
+  </BODY>
+</HTML>

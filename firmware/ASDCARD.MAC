@@ -1,0 +1,807 @@
+TITLE	ASDCARD	SD Card based disk driver for REMEMOTECH or REMEMOrizer
+;
+; Special version for REMEMOTECH or REMEMOrizer
+; Written Aug 2012, A.Key
+;
+.Z80
+ASEG
+
+FALSE	EQU	0
+TRUE	EQU	NOT(FALSE)
+
+CLK50	EQU	1
+CLK4	EQU	0
+
+TOAM	EQU	00046H		; top of available memory
+TOAMPT	EQU	0F000H		; drivers sit above this point
+
+	INCLUDE	PORTS.INC
+
+	EXT	CONFIG,READ,WRITE	; RAM Disc entrypoints
+
+	ORG	100H+0FA80H-0E000H
+
+.PHASE 0FA80H
+
+ASDCARD::	; ROM SIZING
+
+; ----------------------------------------------------
+
+;
+; Initialise
+;
+INITLZ:
+	LD	HL,TOAMPT
+	LD	(TOAM),HL
+	JP	SDTERM
+
+; ----------------------------------------------------
+
+;
+; Configure
+;   before:
+;     (DRVRQ)=drive to configure
+;     (CFGBYT)=type to configure to, 0FFH means use from CFGTAB
+;   after:
+;      if works, A=0, Z, HL->DPB
+;      if doesn't work, A!=0, NZ, HL=0
+;   preserves BC, DE
+;
+EXCNFG:
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,CONFIG
+; disk B: to E:
+	PUSH	DE
+	LD	A,(CFGBYT)
+	CP	018H
+	JR	C,EXCNF2
+	CP	01FH+1
+	JR	NC,EXCNF2
+; recognised type code
+	CALL	CFGADR
+	LD	A,(CFGBYT)
+	LD	(DE),A
+	LD	HL,DPB		; all our type codes have the same DPB
+	POP	DE
+	XOR	A		; A=0, Z
+	RET
+; not a recognised type code, including 0FFH for unconfigured
+; reset (CFGBYT) to the current actual value
+EXCNF2:	CALL	CFGADR
+	LD	A,(DE)
+	LD	(CFGBYT),A
+	LD	HL,0
+	POP	DE
+	XOR	A
+	INC	A		; A=1, NZ
+	RET
+;
+; Block read B blocks
+;   before:
+;     (DRVRQ)=drive
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;     (DMARQ)=address
+;   after:
+;     (DRVRQ) unchanged
+;     (TRKRQ) advanced
+;     (SECRQ) advanced
+;     (DMARQ) advanced
+;     if all read ok, A=0, Z
+;     if fail to read, A=1, NZ
+;
+BLKRD:
+	PUSH	BC
+	CALL	EXRD
+	POP	BC
+	OR	A
+	JR	NZ,BLKRDE
+	LD	HL,(DMARQ)
+	LD	DE,128
+	ADD	HL,DE
+	LD	(DMARQ),HL
+	LD	A,(SECRQ)
+	INC	A
+	CP	26+1
+	JR	C,BLKRD2
+	LD	HL,(TRKRQ)
+	INC	HL
+	LD	(TRKRQ),HL
+	LD	A,1
+BLKRD2:	LD	(SECRQ),A
+	DJNZ	BLKRD
+	XOR	A	; Z
+	RET
+BLKRDE:	XOR	A
+	INC	A	; NZ
+	RET
+;
+; Read Logical Sector
+;   before:
+;     (DRVRQ)=drive
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;   after:
+;     (DRVRQ) unchanged
+;     (TRKRQ) unchanged
+;     (SECRQ) unchanged
+;     (DMARQ) unchanged
+;   preserves BC, DE, HL
+;
+EXRD:
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,READ
+; disk B: to E:
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	LD	(SSTACK),SP
+	LD	SP,DSTACK
+	CALL	CFGSET
+	JR	Z,EXNCFG
+	CALL	SECRD
+	JR	EXDONE	
+;
+; Write Logical Sector
+;   before:
+;     (DRVRQ)=drive
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;   after:
+;     (DRVRQ) unchanged
+;     (TRKRQ) unchanged
+;     (SECRQ) unchanged
+;     (DMARQ) unchanged
+;   preserves BC, DE, HL
+;
+EXWR:
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,WRITE
+; disk B: to E:
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	LD	(SSTACK),SP
+	LD	SP,DSTACK
+	CALL	CFGSET
+	JR	Z,EXNCFG
+	CALL	SECWR
+	JR	EXDONE	
+;
+; Finished EXRD or EXWR
+;
+EXNCFG:	LD	A,7		; 7 means not configured
+EXDONE:	LD	SP,(SSTACK)
+	POP	HL
+	POP	DE
+	POP	BC
+	AND	A		; set flags from A
+	RET
+
+;
+; Set up (CFGBYT)
+;   after:
+;     A=Z if not configured
+;
+CFGSET:	CALL	CFGADR
+	LD	A,(DE)
+	LD	(CFGBYT),A
+	CP	255
+	RET
+;
+; DE->CFGTAB[(CFGBYT)]
+;
+CFGADR:	LD	A,(DRVRQ)
+	LD	E,A
+	LD	D,0
+	LD	HL,CFGTAB
+	ADD	HL,DE
+	EX	DE,HL		; DE->CFGTAB[(DRVRQ)]
+	RET
+
+; ----------------------------------------------------
+
+; CP/M sectors are 128 bytes
+; SD Card blocks are 512 bytes
+; When SECRD or SECWR is called, we cannot assume the card has not been
+; changed since last time, so we cannot avoid re-reading the media.
+; When SECWR is called, we cannot assume we will ever be called again,
+; so we must actually update the media before returning.
+; All of this is highly non-optimal from a performance perspective.
+
+;
+; Read a 128 byte sector
+; Read enclosing 512 bytes and extract the 128 bytes we want
+;   before:
+;     (CFGBYT)=type code
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;   after:
+;     if ok, A=0
+;     if error, A!=0
+;
+SECRD:	CALL	CALC		; calculate block, and offset into buffer
+	CALL	CBLKCC		; is this the block we have in memory
+				; and can we assume the SD Card has not
+				; been changed, and thus avoid re-reading it
+	JR	Z,SECRD2
+	CALL	CBLKRD
+	JR	NZ,SECERR
+SECRD2:	LD	HL,(SECADR)
+	LD	DE,(DMARQ)
+	LD	BC,128
+	LDIR
+	CALL	CBLKCS		; we read it, so remember the block
+	XOR	A		; Z, A=0 => ok
+	RET
+;
+; Write a 128 byte sector
+; Read enclosing 512 bytes, overwrite 128 of them, and write back
+;   before:
+;     (CFGBYT)=type code
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;   after:
+;     if ok, A=0
+;     if error, A!=0
+;
+;
+SECWR:	CALL	CALC		; calculate block, and offset into buffer
+	CALL	CBLKCC		; is this the block we have in memory
+				; and can we assume the SD Card has not
+				; been changed, and thus avoid re-reading it
+	JR	Z,SECWR2
+	CALL	CBLKRD
+	JR	NZ,SECERR
+SECWR2:	LD	HL,(DMARQ)
+	LD	DE,(SECADR)
+	LD	BC,128
+	LDIR
+	CALL	CBLKWR
+	JR	NZ,SECERR
+	CALL	CBLKCS		; we wrote it ok, so remember the LBA
+	XOR	A		; Z, A=0 => ok
+	RET
+;
+; failed
+;
+SECERR:	CALL	CBLKCE		; so empty cache
+	XOR	A
+	INC	A		; NZ, A!=0 => didn't work
+	RET
+;
+; Calculate an 512 byte block number
+;   before:
+;     (CFGBYT)=type code
+;     (TRKRQ)=track
+;     (SECRQ)=sector
+;   after:
+;     (SDLBA)=512 byte block number (17 bits)
+;     (SECADR)=pointer into CBLKBF
+;
+CALC:	LD	DE,(TRKRQ)
+	LD	L,E
+	LD	H,D		;*1
+	ADD	HL,HL		;*2
+	ADD	HL,DE		;*3
+	ADD	HL,HL		;*6
+	ADD	HL,HL		;*12
+	ADD	HL,DE		;*13
+	ADD	HL,HL		;*26
+	LD	D,0
+	LD	A,(SECRQ)
+	DEC	A
+	LD	E,A
+	ADD	HL,DE		;(TRKRQ)*26 + (SEQRQ)-1
+	LD	A,(CFGBYT)
+	AND	7H
+	LD	E,D
+	SRA	A
+	RR	H
+	RR	L
+	RR	E
+	SRA	A
+	RR	H
+	RR	L
+	RR	E		; AHL=512 byte block
+	LD	(SDLBA),HL
+	LD	(SDLBA+2),A
+	SLA	E
+	RL	D		; DE=offset
+	LD	HL,CBLKBF
+	ADD	HL,DE
+	LD	(SECADR),HL
+	RET
+;
+; Card block cache check
+; Are we referencing the block we have in the cache
+; and is the data still "warm"
+;   after:
+;     if yes, Z
+;     if no, NZ
+;
+CBLKCC:	LD	HL,(SDLBA)
+	LD	DE,(CBLKBN)
+	AND	A
+	SBC	HL,DE
+	RET	NZ
+	LD	HL,(SDLBA+2)
+	LD	DE,(CBLKBN+2)
+	AND	A
+	SBC	HL,DE
+	RET	NZ
+	IN	A,(P_SDCTL)	; bit 6 will be set if still "warm"
+	AND	040H		; ie: 0.671s since last SD Card access
+	XOR	040H		; Z if still "warm"
+	RET
+;
+; Card block cache empty
+;
+CBLKCE:	LD	A,-1
+	LD	(CBLKBN+3),A	; we never access block numbers this high
+	RET
+;
+; Card block cache save
+;
+CBLKCS:	LD	HL,(SDLBA)
+	LD	(CBLKBN),HL
+	LD	HL,(SDLBA+2)
+	LD	(CBLKBN+2),HL
+	RET
+
+; ----------------------------------------------------
+
+;
+; Read a 512 byte block
+;   after:
+;     if ok, Z, A=0
+;     if not ok, NZ, A!=0
+;
+CBLKRD:	CALL	SDINIT
+	JR	NZ,CBLKE2
+;;	LD	A,00AH		; send_cid (not using the result as yet)
+;;	CALL	SDREG
+;;	LD	A,009H		; send_csd (not using the result as yet)
+;;	CALL	SDREG
+	LD	HL,CBLKBF
+	CALL	SDREAD
+	JR	NZ,CBLKE1
+	CALL	SDTERM
+	XOR	A		; Z, A=0 => ok
+	RET
+;
+; Write a 512 byte block
+;   after:
+;     if ok, Z, A=0
+;     if not ok, NZ, A!=0
+;
+CBLKWR:	CALL	SDINIT
+	JR	NZ,CBLKE2
+;;	LD	A,00AH		; send_cid (not using the result as yet)
+;;	CALL	SDREG
+;;	LD	A,009H		; send_csd (not using the result as yet)
+;;	CALL	SDREG
+	LD	HL,CBLKBF
+	CALL	SDWRIT
+	JR	NZ,CBLKE1
+	CALL	SDTERM
+	XOR	A		; Z, A=0 => ok
+	RET
+;
+CBLKE1:	CALL	SDTERM
+CBLKE2:	XOR	A
+	DEC	A		; NZ, A!=0 => not ok
+	RET
+
+; ----------------------------------------------------
+
+;
+; Initialise SD card
+; after:
+;   if ok, Z, SD initialised
+;   if not ok, NZ, SD not initialised
+;
+SDINIT:
+
+; do "warmup"
+	IFT	CLK50
+	LD	A,0+62		; disable SD card at 0.4MHz
+	ENDIF
+	IFT	CLK4
+	LD	A,0+4
+	ENDIF
+	OUT	(P_SDCTL),A
+	LD	B,10		; 10*8 pulses (>74) for a "warmup"
+SDINI1:	LD	A,0FFH
+	OUT	(P_SDDAT),A
+SDINI2:	IN	A,(P_SDCTL)
+	BIT	7,A
+	JR	Z,SDINI2
+	DJNZ	SDINI1
+
+; enable card
+	IFT	CLK50
+	LD	A,80H+62	; enable SD card at 0.4MHz
+	ENDIF
+	IFT	CLK4
+	LD	A,80H+4
+	ENDIF
+	OUT	(P_SDCTL),A
+
+; go idle
+	LD	B,255
+SDINI3:	PUSH	BC
+	XOR	A		; go_idle
+	CALL	SDCMD0
+	POP	BC
+	CP	001H
+	JR	Z,SDINI4
+	DJNZ	SDINI3
+	XOR	A
+	OUT	(P_SDCTL),A	; disable SD card
+	DEC	A
+	RET			; NZ => error accessing SD card
+SDINI4:
+
+; initialise the card
+	LD	BC,1000		; can take a while
+SDINI5:	PUSH	BC
+	LD	A,037H		; app_cmd
+	CALL	SDCMD0
+	LD	A,029H		; send_op_cond, ie: initialise card
+	CALL	SDCMD0
+	POP	BC
+	AND	A
+	JR	Z,SDINI6
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,SDINI5
+	XOR	A
+	OUT	(P_SDCTL),A	; disable SD card
+	DEC	A
+	RET			; NZ => error initialising SD card
+SDINI6:
+
+; switch to full speed
+	LD	A,080H		; enable SD card at full speed
+	OUT	(P_SDCTL),A
+	XOR	A		; Z => OK
+	RET
+;
+; Terminate access to SD card
+;
+SDTERM:	XOR	A
+	OUT	(P_SDCTL),A	; disable SD card
+	RET
+
+.COMMENT %
+;
+; Read SD register
+;   before A=readcommand
+;   after A=0 and SDREGV contains register, or A!=0
+;
+SDREG:	LD	B,10
+SDREG1:	PUSH	BC
+	CALL	SDCMD0
+	POP	BC
+	AND	A
+	JR	Z,SDREG3
+	DEC	B
+	JR	Z,SDREG9
+	CALL	SPICMF
+	JR	SDREG1
+SDREG3:	LD	B,10
+	CALL	SPICMF
+	CP	0FEH
+	JR	Z,SDREG4
+	DJNZ	SDREG3
+	JR	SDREG9
+SDREG4:	LD	B,16
+	LD	HL,SDREGV
+SDREG5:	CALL	SPICMF
+	LD	(HL),A
+	INC	HL
+	DJNZ	SDREG5
+	CALL	SPICMF
+	CALL	SPICMF
+	XOR	A
+	RET
+SDREG9:	LD	A,0FFH
+	AND	A
+	RET
+%
+
+;
+; Read block from SD card
+;   before:
+;     SDLBA is 32 bit block 512 byte block number, HL is buffer
+;   after:
+;     if ok, Z
+;     if not ok, NZ
+;
+SDREAD:	PUSH	DE
+	PUSH	HL
+; compute byte offset
+	CALL	SDSLBA
+; send command
+	LD	A,011H		; read_single_block
+	CALL	SDCMD
+; await response
+	LD	B,255
+SDREA2:	CALL	SPICMF		; send ff
+	CP	0FEH		; means data will follow
+	JR	Z,SDREA3
+	DJNZ	SDREA2
+	POP	HL
+	POP	DE
+	XOR	A
+	DEC	A		; NZ => failed data read
+	RET
+; read the bytes
+SDREA3:	LD	BC,P_SDDAF	; B=0, C=port to read data and send next ff
+	POP	HL
+	PUSH	HL
+
+	IFT	CLK50
+	IN	A,(C)		; send first ff
+	INIR			; first 256 bytes
+	INIR			; next 256 bytes
+	IN	A,(C)		; get CRC LSB, send ff
+	IN	A,(P_SDDAT)	; get CRC MSB
+	ENDIF
+
+	IFT	CLK4		; >=16+7+4 - ~4 = 23T per byte
+	IN	A,(C)		; 12T
+	NOP			;  4T
+	NOP			;  4T
+	NOP			;  4T
+	NOP			;  4T
+INILP1:	INI			; 16T
+	JR	NZ,INILP1	; 12T/7T
+	NOP			;  4T
+INILP2:	INI			; 16T
+	JR	NZ,INILP2	; 12T/7T
+	NOP			;  4T
+	IN	A,(C)		; 12T
+	NOP			;  4T
+	NOP			;  4T
+	NOP			;  4T
+	NOP			;  4T
+	IN	A,(P_SDDAT)	; 12T
+	ENDIF
+
+; done
+	POP	HL
+	POP	DE
+	XOR	A		; => ok
+	RET
+;
+; Write block to SD card
+;   before:
+;     SDLBA is 32 bit block 512 byte block number, HL is buffer
+;   after:
+;     if ok, Z
+;     if not ok, NZ
+;
+SDWRIT:	PUSH	DE
+	PUSH	HL
+; compute byte offset
+	CALL	SDSLBA
+; send command
+	LD	B,255
+SDWRI2:	LD	A,018H		; write_block
+	CALL	SDCMD
+	AND	A
+	JR	Z,SDWRI3
+	DJNZ	SDWRI2
+	POP	HL
+	POP	DE
+	XOR	A
+	DEC	A		; NZ => failed data write
+	RET
+; write the bytes
+SDWRI3:	CALL	SPICMF		; send ff dummy byte
+	LD	A,0FEH		; means data will follow
+	CALL	SPICMD
+; write the bytes
+	LD	BC,P_SDDAT	; B=0, C=port to write data
+	POP	HL
+	PUSH	HL
+
+	IFT	CLK50
+	OTIR			; first 256 bytes
+	OTIR			; next 256 bytes
+	ENDIF
+
+	IFT	CLK4		; >=16+7+4 - ~4 = 23T per byte
+OTILP1:	OUTI			; 16T
+	JR	NZ,OTILP1	; 12T/7T
+	NOP			;  4T
+OTILP2:	OUTI			; 16T
+	JR	NZ,OTILP2	; 12T/7T
+	NOP			;  4T
+	ENDIF
+
+	CALL	SPICMF		; send dummy CRC LSB
+	CALL	SPICMF		; send dummy CRC MSB
+SDWRI4:	CALL	SPICMF		; wait for completion
+	INC	A		; ff signals completion
+	JR	NZ,SDWRI4
+; done
+	POP	HL
+	POP	DE
+	XOR	A		; => ok
+	RET
+;
+; SD command
+;   before A=command, HLDE=params
+;   after A=status
+;
+SDCMD0:	LD	HL,0
+	LD	D,H
+	LD	E,L
+SDCMD:	PUSH	AF
+	CALL	SPICMF		; dummy byte
+	POP	AF
+	OR	040H
+	CALL	SPICMD
+	LD	A,H
+	CALL	SPICMD
+	LD	A,L
+	CALL	SPICMD
+	LD	A,D
+	CALL	SPICMD
+	LD	A,E
+	CALL	SPICMD
+	LD	A,095H		; checksum for go_idle
+	CALL	SPICMD
+	CALL	SPICMF		; dummy byte, to give card a chance to process
+	LD	B,10
+SDCMDR:	CALL	SPICMF		; dummy byte, fetch the result
+	BIT	7,A
+	RET	Z
+	DJNZ	SDCMDR
+	RET
+;
+; Set SD LBA
+;
+SDSLBA:	LD	DE,(SDLBA)
+	LD	HL,(SDLBA+2)
+	LD	H,L
+	LD	L,D
+	LD	D,E
+	LD	E,0
+	SLA	D
+	RL	L
+	RL	H		; HLDE <<= 9
+	RET
+;
+; SPI command
+;
+SPICMF:	LD	A,0FFH
+SPICMD:	OUT	(P_SDDAT),A
+SPICM2:	IN	A,(P_SDCTL)
+	BIT	7,A
+	JR	Z,SPICM2
+	IN	A,(P_SDDAT)
+	RET
+
+; ----------------------------------------------------
+
+SSTACK:	DW	0
+	DS	28
+DSTACK:
+;
+SECADR:	DW	0		; CBLKBF+0,+128,+256,+384
+;
+CBLKBN:	DB	0,0,0,-1	; SD Card block buffer block number
+CBLKBF:	DS	512		; SD Card block buffer content
+;
+.COMMENT %
+SDREGV:	DS	16
+%
+SDLBA:	DB	0,0,0,0
+
+; ----------------------------------------------------
+
+	;	DISC PERAMETER BLOCK SET
+
+				;type 18H..1FH, 8MB partitions on an SD Card
+DPB:	DW 26			;Sectors/track
+	DB 5			;Block shift factor (block size = 4096)
+	DB 31			;Block mask (block size = 4096)
+	DB 1			;Extent mask
+	DW 2045			;Maximum block number - 1
+	DW 511			;Maximum directory entries - 1 (four blocks)
+	DB 0F0H,00H		;Allocation vectors
+	DW 128			;Check vector ((directory entries+3)/4)
+	DW 2			;Reserved tracks
+
+EASDCARD::	; ROM SIZE
+
+; ----------------------------------------------------
+
+	;	FIXED INTERFACE AREA
+
+.DEPHASE
+	ORG	100H+0FFA0H-0E000H
+.PHASE  0FFA0H
+NSTK:
+SKEW6:	DB	 1, 7,13,19
+	DB	25, 5,11,17
+	DB	23, 3, 9,15
+	DB	21, 2, 8,14
+	DB	20,26, 6,12
+	DB	18,24, 4,10
+	DB	16,22
+
+	;	SERIAL NUMBER
+.DEPHASE
+
+	ORG	100H+0FFC0H-0E000H
+.PHASE 0FFC0H
+	IFT	CLK50
+	DB	'@REM03'		; =REMEMOTECH
+	ENDIF
+	IFT	CLK4
+	DB	'@REZ03'		; =REMEMOrizer
+	ENDIF
+
+	;	CONFIGURATION TABLE
+.DEPHASE
+	ORG	100H+0FFC8H-0E000H
+.PHASE 0FFC8H	
+
+CFGTAB::
+	DB	255	; DRIVE 0
+	DB	255	; DRIVE 1
+	DB	255	; DRIVE 2
+	DB	255	; DRIVE 3
+	DB	255	; DRIVE 4
+	DB	255	; DRIVE 5
+	DB	255	; DRIVE 6
+	DB	255	; DRIVE 7
+
+; -----------------------------------------------------
+
+	;	CONSOLE INTERFACE JUMP TABLE
+
+	EXT	KBDIN,CRTOUT,KBDSTS
+
+	JP	KBDIN
+	JP	CRTOUT
+	JP 	KBDSTS
+
+; -----------------------------------------------------
+
+	;	DISC INTERFACE
+
+.DEPHASE
+	ORG	100H+0FFE7H-0E000H
+.PHASE 0FFE7H
+
+TRUST:	DB	255		; FF=STANDARD DRIVES
+				; 0 =SLOW START DC DRIVES
+
+DRVRQ:	DB	0
+CFGBYT:	DB	255
+TRKRQ:	DW	0
+SECRQ:	DW	1
+DMARQ:	DW	100H
+
+	JP	EXCNFG
+	JP	EXRD
+	JP	EXWR
+	JP	BLKRD
+	JP	INITLZ
+
+	DB	03H		; version # !!( MUST BE LEFT AS 3 )!!
+
+.DEPHASE
+;
+
+	END

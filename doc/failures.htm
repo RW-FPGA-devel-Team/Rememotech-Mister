@@ -1,0 +1,41 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Failures</H1>
+
+    <P>Things known to not work very well, or at all, but may in future :-
+    <UL>
+      <LI>Highway Encounter jumps straight into the "you've died" screen,
+          although you can play it afterwards.
+      <LI>Continental Raiders corrupts its font,
+          although it does this on MEMU too.
+      <LI>Some other games may have problems, but as a rule,
+          if it works in MEMU, it works on REMEMOTECH.
+      <LI>Some programs may be using keyboard reading code which
+          does debouncing using delay loops.
+          If so, running the system at faster than 4.166MHz may
+          introduce noticable bounciness, and you may find you have
+          to slow it back down again.
+          The REMEMOTECH CP/M boot ROM has a fix for this, but I don't
+          have fixes for arbitrary user programs. 
+    </UL>
+
+    <P>Things which don't work, and may never work, and why :-
+    <UL>
+      <LI>CP/M programs which directly do low level disk configuration
+          or disk I/O, directly to the hardware itself, such as
+          <CODE>FORMAT.COM</CODE>,
+          <CODE>FRMSDX.COM</CODE>,
+          <CODE>SIDFMT.COM</CODE> (ie: <CODE>FORMAT.COM</CODE> renamed),
+          <CODE>RCHECK.COM</CODE> and
+          <CODE>FDXB.COM</CODE>.
+      <LI>Programs which do direct access to the cassette tape ports,
+          such as certain games loaders.
+      <LI>Programs which depend on DART interrupts.
+    </UL>
+
+  </BODY>
+</HTML>

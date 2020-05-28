@@ -1,0 +1,276 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Usage</H1>
+
+    <P>This section covers day to day usage of REMEMOTECH,
+    and covers common hints and tips.
+
+<!--...sAfter power on:4:-->
+<H2>After power on</H2>
+
+<P>After applying power to the DE1, press and hold KEY1 and KEY0,
+press and release KEY3, and then you can let go
+(be careful not to press KEY2, as described in
+<A HREF="setup.htm#flash">Setting up the Flash</A> on the
+<A HREF="setup.htm">Setup</A> page).
+This will reset the T80 (KEY3), and cause
+<A HREF="software.htm#reboot">REBOOT</A>
+to copy the ROM images from Flash to SRAM (KEY1) and
+to copy the initial RAM Disc image from Flash to SRAM (KEY0).
+
+<P>Now your REMEMOTECH is ready to go, and indeed, after doing the above,
+it will boot to the CP/M prompt.
+
+<P>From now on, to reset REMEMOTECH, you can just press KEY3,
+or both Windows keys either side of the space bar.
+
+<P>If both Shift keys are pressed during resetting,
+it doesn't boot CP/M and returns to BASIC instead.
+<!--...e-->
+<!--...sSpeed:4:-->
+<H2>Speed</H2>
+
+<P>SW9 to SW7 control the speed.
+SW9 up, SW8 down, SW7 up (<CODE>101</CODE>) corresponds to 4.166MHz
+(as 25MHz/(5+1)=4.166MHz), which is the closest setting to the
+4MHz that a real Memotech runs at.
+<!--...e-->
+<!--...sTyping:4:-->
+<H2>Typing</H2>
+
+<P>When typing, note that to type certain characters into the MTX keyboard,
+you must type different characters into the PS/2 keyboard.
+See the <A HREF="hardware.htm#keyboard">MTX Keyboard</A> section of
+the <A HREF="hardware.htm">Hardware</A> page for further details.
+This isn't likely to bother you if you are using REMEMOTECH to play
+arcade style games.
+<!--...e-->
+<!--...sSD Card:4:-->
+<H2>SD Card</H2>
+
+<P>Each SD Card can have upto 8 8MB partitions.
+Each of these would contain a CP/M 2.2 filesystem.
+
+<P>The Flash image SD Card is different, and contains a raw 512KB
+image of the Flash (which contains ROM images and the initial RAM Disc
+image).
+You wouldn't use this initial Flash image SD Card as a disk,
+its only used as a part of the initial <A HREF="setup.htm">Setup</A>
+process, see <A HREF="setup.htm#flash">Setting up the Flash</A>.
+
+<P>LEDR0 lights up when REMEMOTECH is reading or writing the SD Card.
+Then it flickers and turns off.
+Wait for it to turn off before removing or changing the SD Card.
+
+<!--...sAccessing SD Cards from CP\47\M:4:-->
+<H3>Accessing SD Cards from CP/M</H3>
+
+<P>You'll need to use <CODE>RECONFIG.COM</CODE> to configure a drive
+(or drives) to access partitions on the SD Card.
+Type codes 18..1F correspond to 8MB partitions 0 to 7 on the card.
+eg: To access partitions 0, 1 and 2 :-
+<PRE>
+A&gt;RECONFIG B:18,C:19,D:1A</PRE>
+<!--...e-->
+<!--...sAccessing SD Cards from MTX BASIC:4:-->
+<H3>Accessing SD Cards from MTX BASIC</H3>
+
+<P>You can switch to MTX BASIC, and use <CODE>ROM 5</CODE>
+to gain access to disk via <CODE>USER</CODE> commands.
+<PRE>
+A&gt;MTXL
+ROM 5
+USER DIR
+USER RUN "TOADO.RUN"</PRE>
+<!--...e-->
+<!--...sAccessing SD Cards from Linux:4:-->
+<H3>Accessing SD Cards on Linux</H3>
+
+<P>On my Linux, my SD Card appears as <CODE>/dev/sdc</CODE>
+(although this may be different for you), and so I can work directly
+with that, or I can use <CODE>dd</CODE> to copy between the device and
+a file containing a specific partition, or all 8 partitions.
+
+<P>To read all 8 partitions, or a specific partition,
+from the SD Card to file(s) :-
+<PRE>
+$ dd if=/dev/sdc of=partitions.dat bs=8M        count=8
+$ dd if=/dev/sdc of=partition3.dat bs=8M skip=3 count=1</PRE>
+
+<P>To copy back all 8 partitions, or just a specific partition,
+from file(s) back to the SD Card :-
+<PRE>
+$ dd if=partitions.dat of=/dev/sdc bs=8M        count=8
+$ dd if=partition3.dat of=/dev/sdc bs=8M seek=3 count=1</PRE>
+
+<P>You can use
+<A HREF="http://www.moria.de/~michael/cpmtools/" TARGET="_main">cpmtools</A>
+(delivered or packaged for most modern Linux distros)
+to manipulate a partition on the SD Card directly, or a present in a file.
+
+<P>You need a <CODE>cpmtools</CODE> <CODE>diskdefs</CODE> file
+which includes definitions of the Memotech CP/M filesystem types.
+This is included and needs to be in the current directory, or in
+<CODE>/usr/share/cpmtools/diskdefs</CODE>.
+
+<P>This file has definitions for <CODE>memotech-type18</CODE>,
+<CODE>memotech-type19</CODE> and similar formats.
+These are identical, except they have different starting offsets.
+So if you are working with a device with all 8 partitions or a file
+with all 8 partitions, you simply pick the right format to address
+the desired partition.
+But if you're working with a file containing just a single partition,
+you always use <CODE>memotech-type18</CODE>, as it has an offset of 0.
+
+<P>Some examples :-
+<PRE>
+$ cpmls -f memotech-type18 /dev/sdc
+$ cpmcp -f memotech-type18 /dev/sdc 0:readme.txt /tmp
+$ cpmcp -f memotech-type19 /dev/sdc /tmp/readme.txt 0:</PRE>
+
+<P>The <CODE>0:</CODE> notation reflects the CP/M user number.
+
+<P>Alternatively, you can use
+<A HREF="http://www.nyangau.org/cpmfuse/cpmfuse.htm" TARGET="_main">cpmfuse</A>,
+which is based on <CODE>cpmtools</CODE> and also uses the same
+<CODE>diskdefs</CODE> file.
+
+<P>With <CODE>cpmfuse</CODE> you can mount a partition from the
+SD Card or a file, and directly manipulate it using normal Linux commands :-
+<PRE>
+$ mkdir mnt
+$ cpmfuse mnt -f memotech-type18 -i /dev/sdc -v
+$ ls mnt/*.TXT
+mnt/README.TXT
+$ fusermount -u mnt</PRE>
+<!--...e-->
+<!--...sAccessing SD Cards from Windows:4:-->
+<H3>Accessing SD Cards on Windows</H3>
+
+<P>If you must use Windows, then these ports of
+<A HREF="http://www.chrysocome.net/dd" TARGET="_main">dd</A> and
+<A HREF="http://www.cpm8680.com/cpmtools/index.htm" TARGET="_main">cpmtools</A>
+are useful.
+I put <CODE>dd.exe</CODE> in a directory on the PATH,
+and I unzip <CODE>cpmtools</CODE> so that it ends up in the
+<CODE>C:\cpmtools</CODE> directory.
+
+<P>The following command adds <CODE>cpmtools</CODE> to your PATH :-
+<PRE>
+C:\ak\tmp&gt;\cpmtools\cpmtools</PRE>
+
+<P>The <CODE>diskdefs</CODE> supplied with it doesn't understand
+Memotech disk formats.
+So save it away, and replace with the file supplied :-
+<PRE>
+C:\ak\tmp&gt;copy \cpmtools\diskdefs \cpmtools\diskdefs.saved
+    1 file(s) copied.
+
+C:\ak\tmp&gt;copy diskdefs \cpmtools\diskdefs
+Overwrite \cpmtools\diskdefs? (Yes/No/All): Y
+    1 file(s) copied.</PRE>
+
+<P>Warning: Don't be tempted to edit the <CODE>diskdefs</CODE> file.
+The Windows version of the <CODE>cpmtools</CODE> package expects each line
+to end with just a line-feed character (as in UNIX), and most Windows text
+editors will terminate each line with carriage-return and line-feed
+(as in DOS and Windows).
+As a result, <CODE>cpmtools</CODE> will complain it doesn't recognise
+disk formats, even though they are in the <CODE>diskdefs</CODE> file.
+This is probably an unintentional consequence of how the code was built
+on Windows.
+
+<P>The first thing to do is to determine which block device is your
+SD Card.
+You don't want to accidentally write to your hard disk.
+Insert the SD Card and type :-
+<PRE>
+C:\ak\tmp&gt;dd --filter=removable --list
+rawwrite dd for windows version 0.5.
+Written by John Newbigin &lt;jn@it.swin.edu.au&gt;
+This program is covered by the GPL.  See copying.txt for details
+
+NT Block Device Objects
+\\?\Device\Harddisk2\Partition0
+link to \\?\Device\Harddisk2\DR7
+\\?\Device\Harddisk3\Partition0
+link to \\?\Device\Harddisk3\DR8
+\\?\Device\Harddisk4\Partition0
+link to \\?\Device\Harddisk4\DR13
+Removable media other than floppy. Block size = 512
+size is 1015808000 bytes</PRE>
+
+<P>The <CODE>--filter=removable</CODE> ensures the list returned only
+includes removable devices.
+You're looking for the one around the right size.
+In this case, as I'm using a 1GB SD Card, its clearly
+<CODE>\\?\Device\Harddisk4\Partition0</CODE>.
+
+<P>As with Linux, you can use <CODE>dd</CODE> to copy all 8 partitions,
+or a single partition, between the SD Card and file(s).
+Same syntax as above, except the device name is a Windows style name.
+However, when copying back, I <U><B>strongly</B></U> recommend you use the
+<CODE>--filter=removable</CODE> command line option, which double checks
+that you are targetting a removable device (ie: hopefully your SD Card,
+rather than your hard disk).
+
+<P>As with Linux, you can use <CODE>cpmtools</CODE> command line programs
+to list partition contents and copy files in or out.
+I have not been able to get the Windows build of <CODE>cpmtools</CODE>
+to work with windows block devices.
+
+<P>Alternatively, you can use
+<A HREF="http://www.nyangau.org/cpmcbfs/cpmcbfs.htm" TARGET="_main">cpmcbfs</A>,
+which is based on <CODE>cpmtools</CODE> and also uses the same
+<CODE>diskdefs</CODE> file.
+
+<P>With <CODE>cpmcbfs</CODE> you can map a drive letter to an image of a
+CP/M filesystem, and directly manipulate it using normal Windows commands.
+Assuming you've already installed it :-
+<PRE>
+c:\cpmcbfs&gt;cpmcbfs -f memotech-type18 -i sddisc.bin -v
+Drive Z: should exist until you press Enter</PRE>
+
+<P>In another Window :-
+<PRE>
+c:\&gt;dir z:</PRE>
+
+<P>If you run as Administrator, you can also enumerate block devices and
+map drive letters to them.
+
+<P>If the <CODE>dd</CODE> program doesn't work for you
+(it doesn't work on my Windows 10 system), you can consider using
+<A HREF="http://www.nyangau.org/rawio/rawio.htm" target="_main">RAWIO</A> instead.
+<!--...e-->
+<!--...e-->
+<!--...sLoading tapes:4:-->
+<H2>Loading tapes</H2>
+
+<P>Prior to switching to MTX BASIC, you can use
+<A HREF="software.htm#retape">RETAPE</A> to prime virtual cassette tapes
+with the contents of <CODE>.MTX</CODE> files.
+From CP/M :-
+
+<PRE>
+A&gt;RETAPE QUAZZIA.MTX 1
+A&gt;RETAPE SNAPPO.MTX 2
+A&gt;RETAPE TIMEBAND.MTX 3
+A&gt;MTXL</PRE>
+
+<P>Then the usual MTX BASIC <CODE>LOAD</CODE> command can be used to
+load it :-
+<PRE>LOAD "QUAZZIA"</PRE>
+
+<P>Running <CODE>RETAPE</CODE> with no arguments lists bytes 1-15
+of the virtual cassette in each slot, which is handy, as these
+are the names you will need to <CODE>LOAD</CODE> from MTX BASIC.
+These names do not necessarily agree with the names of the
+<CODE>.MTX</CODE> files they were loaded from.
+<!--...e-->
+
+  </BODY>
+</HTML>

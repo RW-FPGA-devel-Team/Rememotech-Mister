@@ -1,0 +1,909 @@
+TITLE	REMON	REMEMOTECH Monitor
+
+; This code sits in the top 8KB of 16KB SRAM page 8.
+; It is introduced into a REMEMOTECH system as a part of the ROM images.
+; It is our chance to offer a bootstrap monitor of sorts.
+; Normally we'll just proceed to do the normal MTX ROM based bootstrap.
+;
+; Also includes the virtual tape support.
+
+.Z80
+ASEG
+
+	ORG	00100H
+
+	INCLUDE	PORTS.INC
+
+; --- REMON header
+
+.PHASE	06000H
+
+	DB	'REMON512'	; signiture
+
+REMON::	JP	REMON2
+VTAPE::	JP	VTAPE2
+
+; --- Main REMON entrypoint
+
+XMAX	EQU	80
+YMAX	EQU	24
+
+XPOS	EQU	0F000H
+YPOS	EQU	0F001H
+SDREGV	EQU	0F010H
+SDDATA	EQU	0F100H
+STACK	EQU	0F400H
+
+REMON2:	DI
+	LD	SP,STACK
+
+	CALL	INITVT
+
+	IN	A,(P_XKEY)	; read extra PS/2 keys
+	CP	0FFH		; all unpressed?
+	JP	Z,SKIP		; so skip
+
+; show the cursor
+	LD	A,10
+	OUT	(P_CRTR),A
+	LD	A,040H
+	OUT	(P_CRTD),A
+
+; title line
+	LD	HL,0
+	CALL	SETPOS
+	LD	A,001Q		; red on black
+	CALL	SETCOL
+	LD	A,'='
+	CALL	PRTCHR
+	LD	A,007Q		; white on black
+	CALL	SETCOL
+	LD	HL,MSGINI
+	CALL	PRTSTR
+	LD	A,001Q		; red on black
+	CALL	SETCOL
+	LD	A,'='
+	CALL	PRTCHR
+
+; credits
+	LD	A,006Q		; cyan on black
+	CALL	SETCOL
+	LD	HL,2*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL1
+	CALL	PRTSTR
+	LD	HL,3*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL2
+	CALL	PRTSTR
+	LD	HL,4*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL3
+	CALL	PRTSTR
+	LD	HL,5*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL4
+	CALL	PRTSTR
+
+; indication of what is to come
+	LD	A,003Q		; yellow on black
+	CALL	SETCOL
+	LD	HL,7*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL5
+	CALL	PRTSTR
+	LD	HL,8*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL6
+	CALL	PRTSTR
+
+; show high RAM
+	LD	A,001Q		; red
+	CALL	SETCOL
+	LD	HL,17*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL1
+	CALL	SHOWHA
+	LD	HL,18*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL2
+	CALL	SHOWHA
+	LD	HL,19*100H+0
+	CALL	SETPOS
+	LD	HL,MSGL3
+	CALL	SHOWHA
+
+; show on-chip memory
+	LD	A,002Q		; green
+	CALL	SETCOL
+	LD	HL,20*100H+0
+	CALL	SETPOS
+	LD	HL,0
+	CALL	SHOWHA
+	LD	HL,MSGOCM
+	CALL	PRTSTR
+
+; show SRAM page 4
+	LD	A,006Q		; cyan
+	CALL	SETCOL
+	LD	HL,21*100H+0
+	CALL	SETPOS
+	LD	HL,04000H
+	CALL	SHOWHA
+	LD	HL,MSGSP
+	CALL	PRTSTR
+
+; show flash page 12
+	LD	A,12
+	OUT	(P_PAGE2),A
+	LD	A,003Q		; yellow
+	CALL	SETCOL
+	LD	HL,22*100H+0
+	CALL	SETPOS
+	LD	HL,08000H
+	CALL	SHOWHA
+	LD	HL,MSGFP
+	CALL	PRTSTR
+
+; show high RAM
+	LD	A,005Q		; magenta
+	CALL	SETCOL
+	LD	HL,23*100H+0
+	CALL	SETPOS
+	LD	HL,0C000H
+	CALL	SHOWHA
+	LD	HL,MSGHR
+	CALL	PRTSTR
+
+; wait for user to press an extra key
+
+	CALL	WXKEY
+
+	CALL	MONINI
+
+; MTX bootstrap
+
+SKIP:	LD	HL,JUMP
+	LD	DE,0C000H
+	LD	BC,JUMPE-JUMP
+	LDIR
+	JP	0C000H
+; select normal initial memory setup and do normal MTX bootstrap
+JUMP:	XOR	A
+	OUT	(P_IOB),A		; pages out REMON
+	RST	0
+JUMPE:
+
+; diagnostic text
+
+MSGINI:	DB	'REMEMOTECH r3',0
+
+MSGL1:	DB	'by Andy Key',0
+MSGL2:	DB	'andy.z.key@googlemail.com',0
+MSGL3:	DB	'http://www.nyangau.org/memotech/memotech.htm',0
+MSGL4:	DB	'http://www.nyangau.org/rememotech/rememotech.htm',0
+
+MSGL5:	DB	'At some point, REMON diagnostic features will be available here.',0
+MSGL6:	DB	'For now, just press NumEnter to resume the boot process ...',0
+
+MSGOCM:	DB	' on chip',0
+MSGSP:	DB	' SRAM page 4',0
+MSGFP:	DB	' flash page 12',0
+MSGHR:	DB	' high RAM ',0
+
+; --- Initialise the 80 column card
+
+MONINI:
+
+; set base address to 000
+	LD	A,12
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+	LD	A,13
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; set cursor position to 000
+	LD	A,14
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+	LD	A,15
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; hide the cursor
+	LD	A,10
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; set special register to 24 line mode
+	LD	A,15
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; wipe 4KB of character and attribute memory
+	LD	A,' '
+	OUT	(P_ASCD),A
+	LD	A,007Q		; white on black
+	OUT	(P_ATRD),A
+	LD	HL,0E000H	; E = write|ascm|atrm, 000 = addr
+	LD	BC,01000H
+MONIN2:	LD	A,H
+	OUT	(P_ADRHI),A	; update high part of address
+	LD	A,L
+	OUT	(P_ADRLO),A	; causes ascd and atrd to be written
+	INC	HL
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,MONIN2
+	RET
+
+; wait for extra keypress
+
+WXKEY:	IN	A,(P_XKEY)
+	CP	0FFH
+	JR	NZ,WXKEY
+WXKEY2:	IN	A,(P_XKEY)
+	CP	0FFH
+	JR	Z,WXKEY2
+	RET
+
+SHOWHA:	PUSH	HL
+	CALL	SHOW
+	POP	HL
+
+;
+; display ASCII
+;
+
+SHOWA:	LD	B,16
+SHOWA2:	LD	A,(HL)
+	CALL	PRTCHR
+	INC	HL
+	DJNZ	SHOWA2
+	RET
+
+;
+; display hex bytes
+;
+
+SHOW:	LD	B,16
+SHOW2:	LD	A,(HL)
+	CALL	SHOWH
+	INC	HL
+	LD	A,' '
+	CALL	PRTCHR
+	DJNZ	SHOW2
+	RET
+
+SHOWH:	PUSH	AF
+	SRL	A
+	SRL	A
+	SRL	A
+	SRL	A
+	CALL	SHOWD
+	POP	AF
+	AND	00FH
+
+SHOWD:	PUSH	HL
+	ADD	A,'0'
+	CP	'9'+1
+	JR	C,SHOWD2
+	ADD	A,-'0'-10+'A'
+SHOWD2:	CALL	PRTCHR
+	POP	HL
+	RET
+;
+; Simple screen driver
+;
+
+SETPOS:	LD	(XPOS),HL
+	RET
+
+SETCOL:	OUT	(P_ATRD),A
+	RET
+
+PRTSTR:	LD	A,(HL)
+	AND	A
+	RET	Z
+	CALL	PRTCHR
+	INC	HL
+	JR	PRTSTR
+
+PRTCHR:	PUSH	HL
+	PUSH	DE
+	OUT	(P_ASCD),A
+	CALL	CALCA
+	LD	A,H
+	OR	0E0H		; write, ascm, atrm
+	OUT	(P_ADRHI),A
+	LD	A,L
+	OUT	(P_ADRLO),A
+	CALL	GOFWD
+	CALL	CALCA
+	LD	A,14
+	OUT	(P_CRTR),A
+	LD	A,H
+	OUT	(P_CRTD),A
+	LD	A,15
+	OUT	(P_CRTR),A
+	LD	A,L
+	OUT	(P_CRTD),A
+	POP	DE
+	POP	HL
+	RET
+
+GOFWD:	LD	A,(XPOS)
+	INC	A
+	CP	XMAX
+	JR	NZ,PRTCH2
+	LD	A,(YPOS)
+	INC	A
+	CP	YMAX
+	JR	NZ,PRTCH1
+	XOR	A
+PRTCH1:	LD	(YPOS),A
+	XOR	A
+PRTCH2:	LD	(XPOS),A
+	RET
+
+CALCA:	LD	A,(YPOS)
+	LD	L,A
+	LD	H,0
+	LD	E,A
+	LD	D,0
+	ADD	HL,HL		; *2
+	ADD	HL,HL		; *4
+	ADD	HL,DE		; *5
+	ADD	HL,HL		; *10
+	ADD	HL,HL		; *20
+	ADD	HL,HL		; *40
+	ADD	HL,HL		; *80
+	LD	A,(XPOS)
+	LD	E,A
+	ADD	HL,DE		; YPOS*80+XPOS
+	RET
+
+; --- Virtual tape support
+
+CALCST	EQU	0FA81H
+PAGE	EQU	0FAD2H
+VERIF	EQU	0FD67H
+TYPE	EQU	0FD68H
+
+;
+; Ensure INOUT in the OS ROM is patched to so that it can use the
+; virtual tape support embedded within REMON.
+; Both the OS ROM and REMON sit within the same SRAM page, so the fact
+; REMON is running means that OS ROM is mapped and patchable.
+;
+INITVT:	LD	HL,INOUTS
+	LD	DE,INOUTD+04000H
+	LD	BC,INOUTE-INOUTD
+	LDIR
+	RET
+
+DEBUG	MACRO	v1,v2
+	PUSH	AF
+	LD	A,v1
+	OUT	(P_HEX32),A
+	POP	AF
+	PUSH	AF
+	LD	A,v2
+	OUT	(P_HEX10),A
+	CALL	WXKEY
+	POP	AF
+	ENDM
+
+DEBUG2	MACRO	v
+	PUSH	AF
+	PUSH	HL
+	LD	HL,v
+	LD	A,H
+	OUT	(P_HEX32),A
+	LD	A,L
+	OUT	(P_HEX10),A
+	CALL	WXKEY
+	POP	HL
+	POP	AF
+	ENDM
+
+;
+; Virtual tape handler
+;   before:
+;     IOBYTE selects RELCPMH=0, RAM page 14
+;     (PAGE) reflects actual data RAM page
+;     interrupts disabled
+;     HL = base
+;     DE = length ( != 0 )
+;   after:
+;     interrupts disabled
+;     Z => worked
+;     NZ => failed
+;
+VTAPE2:	LD	(VTSTK),SP
+	LD	SP,VTSTK
+;
+	LD	(CPTR),HL
+	LD	(SIZE),DE
+;
+	LD	A,(PAGE)		; careful, loading can change (PAGE)
+	LD	(CIOB),A		; so keep a safe copy of it
+;
+	LD	A,(TYPE)
+	AND	A
+	JP	Z,SAVE
+; load or verify
+
+; loading the header?
+	LD	A,H
+	CP	0C0H
+	JR	NZ,NOFIND
+	LD	A,L
+	CP	011H
+	JR	NZ,NOFIND
+	LD	A,D
+	AND	A
+	JR	NZ,NOFIND
+	LD	A,E
+	CP	18
+	JR	NZ,NOFIND
+
+; is it LOAD "" or VERIFY ""
+	CALL	NAMEQQ
+	JR	NZ,FIND1
+	LD	A,00EH
+	LD	(TIOB),A
+	LD	A,8
+	LD	(TPAG0),A
+	LD	HL,04000H
+	LD	(TPTR),HL
+	JR	NOFIND
+
+; now try to find the virtual tape in SRAM
+FIND1:	LD	BC,00E09H
+	CALL	LOOKVT
+	JR	NZ,FIND2
+	LD	A,00EH
+	LD	(TIOB),A
+	LD	A,8
+	LD	(TPAG0),A
+	LD	HL,04000H
+	LD	(TPTR),HL
+	JR	NOFIND
+
+; now try to find the virtual tape in Flash
+FIND2:	LD	BC,00F20H		; Flash page 32..35,36..39,...
+FIND4:	CALL	LOOKVT
+	JR	Z,FIND6
+	INC	C
+	INC	C
+	INC	C
+	INC	C
+	JR	NZ,FIND4		; upto 252..255
+	JP	ERRORN			; failed to find, which is bad
+; found a virtual tape accessible in RAM page B, page register value C
+; rewind to start of that virtual tape
+FIND6:	LD	A,B
+	LD	(TIOB),A
+	LD	A,C
+	LD	(TPAG0),A
+	LD	HL,00000H
+	LD	(TPTR),HL
+
+; now (slowly) read or verify bytes of data
+NOFIND:	LD	A,(VERIF)
+	AND	A
+	JP	NZ,VERI
+
+.COMMENT %
+
+	/* Algorithm used is roughly this... */
+	do
+		{
+		byte tpag = tpage_of(tpag0, tptr);
+		word toff = (tptr & 0x3fff);
+		byte cpag = cpage_of(iobyte, cptr);
+		word coff = (cptr & 0x3fff);
+		word thisgo = size;
+		if ( thisgo > sizeof(BUF) )
+			thisgo = sizeof(BUF);
+		if ( thisgo > 0x4000-toff )
+			thisgo = 0x4000-toff;
+		if ( thisgo > 0x4000-coff )
+			thisgo = 0x4000-coff;
+		copy(tpag, toff, cpag, coff);
+		tptr += thisgo;
+		cptr += thisgo;
+		size -= thisgo;
+		}
+	while ( size );
+
+%
+
+LOAD:
+;
+LOAD2:	CALL	BREAK
+	JP	Z,ERRORB
+	CALL	CALCT			; calculate (TPAG), (TOFF)
+	CALL	CALCC			; calculate (CPAG), (COFF)
+	CALL	CALCS			; calculate (THISGO)
+;
+	LD	A,(TIOB)
+	OUT	(P_IOB),A
+	LD	A,(TPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,(TOFF)
+	SET	7,H
+	LD	DE,BUF
+	LD	BC,(THISGO)
+	LDIR
+	LD	A,00EH
+	OUT	(P_IOB),A
+	LD	A,(CPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,BUF
+	LD	DE,(COFF)
+	SET	7,D
+	LD	BC,(THISGO)
+	LDIR
+;
+	CALL	STEP			; adjust (TPTR), (CPTR), (SIZE)
+	JR	NZ,LOAD2
+	JP	WORKED
+
+; verify
+VERI:
+;
+VERI2:	CALL	BREAK
+	JP	Z,ERRORB
+	CALL	CALCT			; calculate (TPAG), (TOFF)
+	CALL	CALCC			; calculate (CPAG), (COFF)
+	CALL	CALCS			; calculate (THISGO)
+;
+	LD	A,(TIOB)
+	OUT	(P_IOB),A
+	LD	A,(TPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,(TOFF)
+	SET	7,H
+	LD	DE,BUF
+	LD	BC,(THISGO)
+	LDIR
+	LD	A,00EH
+	OUT	(P_IOB),A
+	LD	A,(CPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,BUF
+	LD	DE,(COFF)
+	SET	7,D
+	LD	BC,(THISGO)
+VERI4:	LD	A,(DE)
+	CP	(HL)
+	JP	NZ,ERRORM
+	INC	HL
+	INC	DE
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,VERI4
+;
+	CALL	STEP			; adjust (TPTR), (CPTR), (SIZE)
+	JR	NZ,VERI2
+	JP	WORKED
+
+; save
+SAVE:	LD	BC,(CALCST)		; typically 0C001H
+					; bugfix to use (CALCST)
+					; identified by Paul Daniels
+	PUSH	HL
+	AND	A
+	SBC	HL,BC
+	POP	HL
+	JR	NZ,SAVE1
+	LD	A,D
+	AND	A
+	JR	NZ,SAVE1
+	LD	A,E
+	CP	20
+	JR	NZ,SAVE1
+;
+	DEC	DE
+	DEC	DE
+	LD	(SIZE),DE		; correct bug in MTX ROM
+; rewind to start
+	LD	A,8
+	LD	(TPAG0),A
+	LD	HL,04000H
+	LD	(TPTR),HL
+;
+SAVE1:	LD	A,00EH
+	OUT	(P_IOB),A
+;
+SAVE2:	CALL	BREAK
+	JP	Z,ERRORB
+	CALL	CALCT			; calculate (TPAG), (TOFF)
+	CALL	CALCC			; calculate (CPAG), (COFF)
+	CALL	CALCS			; calculate (THISGO)
+;
+	LD	A,(CPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,(COFF)
+	SET	7,H
+	LD	DE,BUF
+	LD	BC,(THISGO)
+	LDIR
+	LD	A,(TPAG)
+	OUT	(P_PAGE2),A
+	LD	HL,BUF
+	LD	DE,(TOFF)
+	SET	7,D
+	LD	BC,(THISGO)
+	LDIR
+;
+	CALL	STEP			; adjust (TPTR), (CPTR), (SIZE)
+	JR	NZ,SAVE2
+	JP	WORKED
+
+; how to get back into the OS ROM
+
+; worked
+WORKED:	LD	SP,(VTSTK)
+	LD	A,(CIOB)		; restore (PAGE)
+	JP	INOUTW
+; "BK"
+ERRORB:	LD	SP,(VTSTK)
+	LD	A,(CIOB)		; restore (PAGE)
+	JP	INOUTB
+; "Mismatch"
+ERRORM:	LD	SP,(VTSTK)
+	LD	A,(CIOB)		; restore (PAGE)
+	JP	INOUTM
+; "No data"
+; original Memotech would not generate this error code
+; but REMEMOTECH knows it can never load a tape with the given name
+ERRORN:	LD	SP,(VTSTK)
+	LD	A,(CIOB)		; restore (PAGE)
+	JP	INOUTN
+
+; has break been pressed
+BREAK:	LD	A,0FEH
+	OUT	(P_KDRV),A
+	IN	A,(P_KSNS6)		; break key
+	BIT	0,A			; Z if pressed
+	RET
+
+; calculate virtual tape page and offset
+CALCT:	LD	HL,(TPTR)
+	LD	A,H
+	RLCA
+	RLCA
+	AND	003H
+	LD	BC,(TPAG0)
+	ADD	A,C
+	LD	(TPAG),A
+	RES	7,H
+	RES	6,H
+	LD	(TOFF),HL
+	RET
+
+; calculate client page and offset
+CALCC:	LD	HL,(CPTR)
+	LD	A,(CIOB)
+	AND	00FH
+	SLA	H
+	RLA
+	SLA	H
+	RLA
+	LD	E,A
+	LD	D,0
+	LD	HL,PGTAB
+	ADD	HL,DE
+	LD	A,(HL)
+	LD	(CPAG),A
+	LD	HL,(CPTR)
+	RES	7,H
+	RES	6,H
+	LD	(COFF),HL
+	RET
+;
+PGTAB:	DB	-1, 2, 1, 0
+	DB	-1,12, 3, 0
+	DB	-1,14,13, 0
+	DB	-1,16,15, 0
+	DB	-1,18,17, 0
+	DB	-1,20,19, 0
+	DB	-1,22,21, 0
+	DB	-1,-1,23, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+	DB	-1,-1,-1, 0
+
+; calculate size this go
+CALCS:	LD	DE,(SIZE)
+; don't overflow buffer
+	LD	HL,BUFSZ
+	AND	A
+	SBC	HL,DE			; CY if size too big
+	JR	NC,CALCS2
+	LD	DE,BUFSZ
+; don't pass end of tape page 04000H-TOFF
+CALCS2:	PUSH	DE
+	LD	HL,04000H
+	LD	DE,(TOFF)
+	AND	A
+	SBC	HL,DE			; HL = 04000H-(TOFF)
+	POP	DE
+	PUSH	HL
+	AND	A
+	SBC	HL,DE
+	POP	HL
+	JR	NC,CALCS4
+	EX	DE,HL
+; don't pass end of client page 04000H-COFF
+CALCS4:	PUSH	DE
+	LD	HL,04000H
+	LD	DE,(COFF)
+	AND	A
+	SBC	HL,DE			; HL = 04000H-(COFF)
+	POP	DE
+	PUSH	HL
+	AND	A
+	SBC	HL,DE
+	POP	HL
+	JR	NC,CALCS6
+	EX	DE,HL
+; done
+CALCS6:	LD	(THISGO),DE
+	RET
+;
+; step forward by amount thisgo
+;   after:
+;     NZ => more to do
+;     Z  => all done
+;
+STEP:	LD	DE,(THISGO)
+	LD	HL,(TPTR)
+	ADD	HL,DE
+	LD	A,H
+	OR	L
+	JR	NZ,STEP2
+	DEC	HL			; prevent going beyond end of tape
+STEP2:	LD	(TPTR),HL
+	LD	HL,(CPTR)
+	ADD	HL,DE
+	LD	(CPTR),HL
+	LD	HL,(SIZE)
+	AND	A
+	SBC	HL,DE
+	LD	(SIZE),HL
+	LD	A,H
+	OR	L
+	RET
+;
+; is the name to load blank?
+;   after:
+;     Z => yes
+;     NZ => no
+;
+NAMEQQ:	PUSH	HL
+	PUSH	BC
+	LD	HL,0C002H
+	LD	B,15
+NAMEQ2:	LD	A,(HL)
+	CP	' '
+	JR	NZ,NAMEQ4
+	INC	HL
+	DJNZ	NAMEQ2
+	XOR	A
+NAMEQ4:	POP	BC
+	POP	HL
+	RET
+;
+; is there a virtual tape with the right name
+; look for 0FFH,'15charactername'
+;   before:
+;     B = IOBYTE
+;     C = page register
+;   after:
+;     Z => yes
+;     NZ => no
+;
+LOOKVT:	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	LD	A,B
+	OUT	(P_IOB),A
+	LD	A,C
+	OUT	(P_PAGE2),A
+	LD	B,1+15
+	LD	HL,0C001H
+	LD	DE,08000H
+LOOKV2:	LD	A,(DE)
+	CP	(HL)
+	JR	NZ,LOOKV4		; NZ => not found
+	INC	HL
+	INC	DE
+	DJNZ	LOOKV2
+	XOR	A			; Z => found
+LOOKV4:	POP	BC
+	POP	DE
+	POP	HL
+	RET
+
+; virtual tape variables
+
+	DS	20
+VTSTK:	DW	0
+
+SIZE:	DW	0			; total tape operation size
+THISGO:	DW	0			; how much in this chunk
+
+CIOB:	DB	0			; client IOBYTE
+CPTR:	DW	0			; client pointer
+CPAG:	DB	0			; client page
+COFF:	DW	0			; client offset
+
+TIOB:	DB	14			; tape IOBYTE (ie: RAM page 14 or 15)
+TPAG0:	DB	8			; tape page for start of tape
+TPTR:	DW	04000H			; tape pointer, 0..0FFFFH
+TPAG:	DB	0			; tape page
+TOFF:	DW	0			; tape offset
+
+BUFSZ	EQU	1024			; doesn't have to be a power of 2
+BUF:	DS	BUFSZ
+
+; --- INOUT patch
+
+INOUTS:
+.DEPHASE
+.PHASE 00AAEH
+;
+INOUTD:	LD	A,D
+	OR	E
+	RET	Z
+; something to do
+	CALL	0097FH			; DI and disable interrupts at CTC
+	LD	A,00EH			; to RAM page 14
+	OUT	(P_IOB),A
+	LD	A,8			; REMON visible between 04000H..07FFFH
+	OUT	(P_PAGE1),A
+	JP	VTAPE
+;
+INOUTW:	OUT	(P_IOB),A
+	JP	00996H			; enable VDP interrupt and EI
+;
+INOUTB:	OUT	(P_IOB),A
+	EI
+	RST	028H
+	DB	03EH			; error 14 is "BK"
+;
+INOUTM:	OUT	(P_IOB),A
+	EI
+	RST	028H
+	DB	00BH			; error 11 is "Mismatch"
+;
+INOUTN:	OUT	(P_IOB),A
+	EI
+	RST	028H
+	DB	00FH			; error 15 is "No data"
+;
+INOUTE:
+;
+.DEPHASE
+
+	ORG	02100H
+
+END

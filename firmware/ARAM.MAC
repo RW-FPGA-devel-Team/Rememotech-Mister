@@ -1,0 +1,486 @@
+TITLE	ARAM	RAM Disc driver for REMEMOTECH
+;
+.Z80
+ASEG
+;
+; Special version for REMEMOTECH or REMEMOrizer
+; Modified Feb 2012, A.Key
+;
+; This is a subset of the usual ASIDISC.MAC.
+; It doesn't support Silicon Discs, only RAM Discs.
+; It only supports sizes possible on REMEMOTECH, ie: type 50 and 52.
+; It is designed to fit above 0F000H, and always be loaded.
+; This makes this version incompatible with SIDISC.COM.
+;
+FALSE	EQU	0
+TRUE	EQU	NOT FALSE
+ITALY	EQU	FALSE
+;
+;
+;
+@V1	EQU	1
+@V2	EQU	2
+;
+PGPORT	EQU	00H
+;
+DRVRQ	EQU	0FFE8H
+CFGBYT	EQU	0FFE9H
+TRKRQ	EQU	0FFEAH
+SECRQ	EQU	0FFECH
+DMARQ	EQU	0FFEEH
+VERSNO	EQU	0FFFFH
+
+	EXT	CFGTAB
+;
+	ORG	100H+0F880H-0E000H
+;
+.PHASE	0F880H
+
+ARAM::		; ROM SIZING
+;
+;CONFIG is the configuration routine.
+;On exit, Z, HL -> DPB if disc type valid,
+;else NZ, HL = 0000H.
+;
+CONFIG::
+;
+	PUSH BC
+	PUSH DE			;Save registers
+;
+;Firstly, test whether configuring RAM disc.
+;
+	LD A,(CFGBYT)		;Get configuration byte
+	CP 50H
+	JR C,CONFG3		;Jump if type < 50H
+	CP 52H+1
+	JR NC,CONFG3		;Jump if type > 52H
+;
+;Here if configuring RAM disc.
+;A = configuration byte (50H to 52H).
+;
+	LD C,A			;C = configuration byte
+	LD A,(DRVRQ)		;A = drive number
+	LD B,A			;B = drive number
+	LD A,(RAMDRV)		;A = RAM disc drive if configured
+	CP B
+	JR Z,CONFG1		;Jump if re-configuring RAM disc drive
+	INC A
+	JR NZ,CONFG3		;Jump if RAM disc already in use
+	LD A,B
+	LD (RAMDRV),A		;Store RAM disc drive number
+CONFG1:
+	LD A,C			;A = configuration byte
+;
+;Now find address of DPB from DPB table.
+;A = configuration byte.
+;
+	CALL GETDPB		;HL -> DPB hopefully
+	JR NZ,CONFG3		;Jump if DPB not found
+;
+;Here, HL -> DPB for current RAM disc type.
+;
+	PUSH HL			;Save DPB address
+	CALL SETCFG		;Store configuration byte in table
+	POP HL			;Restore DPB address
+	POP DE
+	POP BC			;Restore registers
+	XOR A			;Z indicates success
+	RET
+;
+;Here if DPB not found for current configuration.
+;
+CONFG3:
+	CALL GETCFG		;Load configuration byte from table
+	LD HL,0000H
+	POP DE
+	POP BC			;Restore registers
+	LD A,1
+	OR A			;NZ indicates failure
+	RET
+;
+;
+;
+;SETCFG loads entry in CFGTAB with (CFGBYT).
+;On exit, A = (CFGBYT).
+;
+SETCFG:
+	LD A,(DRVRQ)
+	AND 7			;A = drive number (0-7)
+	LD HL,CFGTAB		;HL -> configuration table
+	LD E,A
+	LD D,0
+	ADD HL,DE		;HL -> entry in configuration table
+	LD A,(CFGBYT)
+	LD (HL),A		;Store (CFGBYT)
+	RET
+;
+;
+;
+;GETCFG loads (CFGBYT) with entry in CFGTAB.
+;On exit, A = (CFGBYT), Z if A = FFH.
+;
+GETCFG:
+	LD A,(DRVRQ)
+	AND 7			;A = drive number (0-7)
+	LD HL,CFGTAB		;HL -> configuration table
+	LD E,A
+	LD D,0
+	ADD HL,DE		;HL -> entry in configuration table
+	LD A,(HL)
+	LD (CFGBYT),A		;Set (CFGBYT)
+	CP 0FFH
+	RET
+;
+;
+;
+;READ is the read sector routine.
+;
+READ::
+;
+	PUSH BC
+	PUSH DE			;Save registers
+	PUSH HL
+	CALL GETCFG		;Get configuration byte
+	JR Z,WRITE6		;Jump if configuration error
+;
+;Now calculate address of record to read.
+;
+	CALL GETREC
+	JR C,WRITE6		;Jump if record number too large
+;
+;Here if reading RAM disc sector.
+;A = high (record buffer),
+;B = sector page, C = CP/M page,
+;DE -> sector, HL -> record buffer.
+;
+	EX DE,HL		;DE -> record buffer, HL -> sector
+	CP 0C0H
+	LD A,B			;A = sector page
+	JR NC,WRITE3		;Jump if record buffer in top 16K
+	JR WRITE2		;Jump if record buffer not in top 16K
+;
+;
+;
+;WRITE is the write sector routine.
+;
+WRITE::
+;
+	PUSH BC
+	PUSH DE			;Save registers
+	PUSH HL
+	CALL GETCFG		;Get configuration byte
+	JR Z,WRITE6		;Jump if configuration error
+;
+;Now calculate address of record to read/write.
+;
+	CALL GETREC
+	JR C,WRITE6		;Jump if record number too large
+;
+;Here if writing RAM disc sector.
+;A = high (record buffer),
+;B = sector page, C = CP/M page,
+;DE -> sector, HL -> record buffer.
+;
+WRITE1:
+	CP 0C0H
+	LD A,B			;A = sector page
+	JR NC,WRITE3		;Jump if record buffer in top 16K
+	LD A,C			;A = CP/M page
+	LD C,B			;C = sector page
+;
+;Here if record buffer not in top 16K of RAM.
+;Reading: A = sector page, C = CP/M page, DE -> record buffer, HL -> sector.
+;Writing: A = CP/M page, C = sector page, DE -> sector, HL -> record buffer.
+;
+WRITE2:
+	PUSH DE
+	LD DE,RECBUF
+	CALL COPY		;Copy sector into intermediate buffer
+	POP DE
+	LD HL,RECBUF
+	LD A,C			;A = other page
+;
+WRITE3:
+	CALL COPY		;Copy sector
+;
+;Finally, restore registers and return.
+;
+WRITE4:
+	XOR A			;Z indicates success
+;
+WRITE5:
+	POP HL
+	POP DE			;Restore registers
+	POP BC
+	RET
+;
+;Here if configuration or record number error.
+;
+WRITE6:
+	LD A,7
+	OR A			;NZ indicates failure
+	JR WRITE5
+;
+;
+;
+;COPY copies 128 bytes from (HL) -> (DE) on page A.
+;On exit, CP/M page is always selected.
+;Preserves BC.
+;
+;N.B.	All page switching is done in this routine.
+;	Interrupts disabled on entry, enabled on exit.
+;
+COPY:
+	DI
+	PUSH BC			;Save BC
+	OUT (PGPORT),A		;Select RAM page
+;
+;Now copy 128 byte sector.
+;
+	LD BC,128
+COPY1:
+	LDI			;1
+	LDI			;2
+	LDI			;3
+	LDI			;4
+	JP PE,COPY1		;Jump if more bytes to copy
+;
+;Select CP/M page before returning.
+;
+	LD A,080H
+	OUT (PGPORT),A		;Select RAM page for CP/M
+	POP BC			;Restore BC
+	EI
+	RET
+;
+;
+;
+;GETREC calculates the record number
+;of the next sector to read or write.
+;On entry, A = configuration byte.
+;On exit, C, DE and HL hold various values.
+;
+GETREC:
+;
+;Firstly, test whether disc type 50H-52H.
+;
+	CP 50H
+	RET C			;Return if not RAM disc
+	CP 52H+1
+	CCF
+	RET C			;Return if not RAM disc
+;
+;Now calculate logical record number of sector.
+;
+	LD HL,(TRKRQ)		;Get track number
+	ADD HL,HL		;Track*2
+	LD B,H
+	LD C,L			;BC = track*2
+	ADD HL,HL		;Track*4
+	ADD HL,HL		;Track*8
+	LD D,H
+	LD E,L			;DE = track*8
+	ADD HL,HL		;Track*16
+	ADD HL,DE		;Track*24
+	ADD HL,BC		;Track*26
+	LD DE,(SECRQ)		;Get sector number
+	ADD HL,DE		;Add sector number
+	DEC HL			;Necessary since first sector is 1
+	EX DE,HL		;DE = logical record number
+;
+;Now find maximum record number on disc.
+;A = configuration byte, DE = logical record number.
+;
+	LD HL,MAXREC		;HL -> maximum record table
+	SUB 50H
+	LD C,A
+	LD B,0
+	ADD HL,BC
+	ADD HL,BC		;HL -> maximum record number for disc type
+	LD A,(HL)
+	INC HL
+	LD H,(HL)
+	LD L,A			;HL = maximum record number on disc
+	AND A
+	SBC HL,DE
+	RET C			;Return if record number too large
+;
+;Here if logical record number of sector in range.
+;DE = logical record number.
+;
+	EX DE,HL		;HL = physical record number
+;
+;Here, HL = physical record number.
+;Find physical page and address for sector.
+;
+	ADD HL,HL		;HL = record number * 2
+	LD A,H			;A = high (record number * 2)
+	LD D,L			;D = low (record number * 2)
+	AND 00011111B		;Keep only bits 0-4
+	LD HL,PAGETAB		;HL -> RAM page look-up table
+	LD C,A
+	LD B,0
+	ADD HL,BC		;HL -> RAM page for record * 4 (0-41)
+	LD B,(HL)		;B = RAM page value (0-41)
+;
+	LD E,0
+	SRL B
+	RR D
+	SRL B			;B = logical page for sector (bit 7 reset)
+	RR D
+	RR E			;DE = address of sector in RAM page
+;
+;Here, B = logical page for sector (bit 7 reset),
+;DE = address of sector in page.
+;
+	LD A,081H		;A = logical page zero (bit 7 set)
+	ADD A,B			;A = physical page for sector
+	LD B,A			;B = sector page (bit 7 set)
+	LD C,080H		;C = CP/M page (bit 7 set)
+	LD HL,(DMARQ)		;HL -> record buffer
+	XOR A			;NC
+	LD A,H			;A = high (record buffer)
+	RET
+;
+;
+;
+;GETDPB finds address of DPB for RAM disc type.
+;On entry, A = configuration byte.
+;On exit, Z, HL -> DPB if it exists, else NZ.
+;
+GETDPB:
+	LD HL,DPB52
+	CP 052H
+	RET Z
+	LD HL,DPB50
+	CP 050H
+	RET
+;
+; Disc parameter blocks
+;
+DPB50:
+;
+;Disc type 50 - 256K RAM disc.
+;
+	DW 26			;Sectors/track
+	DB 3			;Block shift factor (block size = 1024)
+	DB 7			;Block mask (block size = 1024)
+	DB 0			;Extent mask
+	DW 248			;Maximum block number - 1
+	DW 63			;Maximum directory entries - 1 (two blocks)
+	DB 0C0H,00H		;Allocation vectors
+	DW 0			;Check vector
+	DW 2			;Reserved tracks
+;
+;Disc type 51 - 512K RAM disc.
+;Too big to fit into REMEMOTECH
+;
+;DPB51:	DW 26			;Sectors/track
+;	DB 4			;Block shift factor (block size = 2048)
+;	DB 15			;Block mask (block size = 2048)
+;	DB 1			;Extent mask
+;
+;IFT	ITALY
+;
+;	DW 251-(32/2)		;Maximum block number - 1
+;
+;ELSE
+;
+;	DW 251			;Maximum block number - 1
+;
+;ENDIF
+;
+;	DW 127			;Maximum directory entries - 1 (two blocks)
+;	DB 0C0H,00H		;Allocation vectors
+;	DW 0			;Check vector
+;	DW 2			;Reserved tracks
+;
+;Disc type 52 - 320K RAM disc. (REMEMOTECH)
+;Note: this (deliberately) matches type 03 floppy, except no check vector
+;
+DPB52:	DW	26		;Sectors/track
+	DB	4		;Block shift factor (block size = 2048)
+	DB	15		;Block mask (block size = 2048)
+	DB	1		;Extent mask
+	DW	155		;Maximum block number - 1
+	DW	63		;Maximum directory entries - 1 (one block)
+	DB	080H,000H	;Allocation vectors
+	DW	0		;Check vector
+	DW	2		;Reserved tracks
+;
+;MAXREC is the table of maximum record numbers
+;for each RAM disc type, starting from type 50.
+;
+;N.B.	First record is record 0 (track 0 sector 1).
+;
+MAXREC::
+	DW 2043			; 4 records not used ( 256K disc)
+IFT	ITALY
+	DW 4083-(32*8)		;12 records not used ( 480K disc)
+ELSE
+	DW 4083			;12 records not used ( 512K disc)
+ENDIF
+	DW 2547			;12 records not used ( 320K disc)
+;
+;PAGETAB is the table used for calculating
+;logical RAM pages on RAM disc.
+;
+PAGETAB::
+	DB 0			;Logical page  0 +  0K
+	DB 1			;Logical page  0 + 16K
+	DB 2			;Logical page  0 + 32K
+;
+	DB 4			;Logical page  1 +  0K
+	DB 5			;Logical page  1 + 16K
+	DB 6			;Logical page  1 + 32K
+;
+	DB 8			;Logical page  2 +  0K
+	DB 9			;Logical page  2 + 16K
+	DB 10			;Logical page  2 + 32K
+;
+	DB 12			;Logical page  3 +  0K
+	DB 13			;Logical page  3 + 16K
+	DB 14			;Logical page  3 + 32K
+;
+	DB 16			;Logical page  4 +  0K
+	DB 17			;Logical page  4 + 16K
+	DB 18			;Logical page  4 + 32K
+;
+	DB 20			;Logical page  5 +  0K
+	DB 21			;Logical page  5 + 16K
+	DB 22			;Logical page  5 + 32K
+;
+	DB 24			;Logical page  6 +  0K
+	DB 25			;Logical page  6 + 16K
+;
+;
+;
+;RAMDRV holds RAM disc drive number.
+;
+RAMDRV::
+	DB 0FFH
+;
+;
+;
+;RECBUF is intermediate record buffer for
+;indirect sector reads or writes on RAM disc.
+;
+RECBUF::
+;
+REPT	128
+	DB 0			;Buffer is 128 bytes in length
+ENDM
+;
+;
+;
+EARAM::		; ROM SIZING
+;
+.DEPHASE
+;
+;
+;
+FINISH:
+;
+;
+;
+END

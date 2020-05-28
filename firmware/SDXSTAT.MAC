@@ -1,0 +1,310 @@
+TITLE	SDXSTAT	SDX stat command
+
+; This is a reconstruction of the source for the SDX ROM.
+; A SDX ROM was disassembled using BE and BEZ80.
+; Symbols were taken from a PDF of a printed listing of the ROM.
+; This was post-processed using a custom script, to make it more M80-like.
+; Finally, salient text in the PDF was transcribed to this source.
+
+.Z80
+CSEG
+
+	INCLUDE	BDOS.INC
+	INCLUDE	BASIC.INC
+	INCLUDE	SYSVARS.INC
+	INCLUDE	SDXCONF.INC
+	INCLUDE	SDXHIGH.INC
+
+	EXT	NOFILE,GETFNAM
+
+	IFT	WASTAGE
+; The orignal source file (accidentally) used ORG 100H, thus wasting
+; 100H bytes of ROM space. We faithfully reproduce the same effect here.
+	DS	00100H
+	ENDIF
+
+;
+; USER STAT
+; Syntax: USER STAT
+; Syntax: USER STAT "filename"
+; Syntax: USER STAT "filename",R/attr
+;
+	; missing syntax byte?
+;
+STAT::	INC	DE
+	LD	A,(DE)
+	CP	0FFH
+	JP	Z,STAT1
+	CP	'"'
+	JR	NZ,ERROR
+	PUSH	DE
+LOPS:	INC	DE
+	LD	A,(DE)
+	CP	0FFH
+	JR	Z,ERROR
+	CP	'"'
+	JR	NZ,LOPS
+	POP	DE
+	LD	IX,CHNL5
+	CALL	GETFNAM
+	JP	Z,STCHK
+	DEC	DE
+	LD	A,(DE)
+	CP	0FFH
+	JP	Z,SFR
+	CP	','
+	JR	NZ,ERROR
+	INC	DE
+	LD	A,(DE)
+	CP	'R'
+	JR	NZ,ERROR
+	INC	DE
+	LD	A,(DE)
+	CP	'W'
+	JR	Z,RW
+	CP	'O'
+	JR	Z,RO
+ERROR:	RST	028H
+	DB	001H			; "Mistake"
+;
+RO:	LD	HL,CHNL5+9
+	SET	7,(HL)
+RW:	LD	(DMA_DEF+4),A
+	LD	C,SFATTR
+	LD	DE,CHNL5
+	CALL	SDXBDOS
+	CP	0FFH
+	CALL	Z,NOFILE
+	CALL	NAMPR
+	RST	010H
+	DB	089H			; write string, 9 characters
+	DB	' set to R'
+	LD	A,(DMA_DEF+4)
+	CALL	PRINT
+	RST	010H
+	DB	083H			; write string, 3 characters
+	DB	00DH,00AH,00AH
+	RET
+;
+SFR:	LD	DE,CHNL5
+	LD	C,SFF
+	CALL	SDXBDOS
+	CP	0FFH
+	CALL	Z,NOFILE
+	LD	HL,DMA_DEF+9
+	RRCA
+	RRCA
+	RRCA
+	LD	C,A
+	LD	B,000H
+	ADD	HL,BC
+	LD	DE,CHNL5+9
+	LD	A,(HL)
+	LD	(DE),A
+	LD	DE,CHNL5
+	LD	C,CFSIZE
+	CALL	SDXBDOS
+	CALL	NAMPR
+	LD	HL,(CHNL5+33)		; file size in FCB
+	PUSH	HL
+	LD	BC,7
+	ADD	HL,BC
+	SRL	H
+	RR	L
+	SRL	H
+	RR	L
+	SRL	H
+	RR	L
+	CALL	HEXDEC
+	RST	010H
+	DB	083H			; write string, 3 characters
+	DB	'k  '
+	POP	HL
+	CALL	HEXDEC
+	RST	010H
+	DB	088H			; write string, 8 characters
+	DB	' Recs  R'
+	LD	A,(CHNL5+9)
+	BIT	7,A
+	JR	Z,RDWRTE
+	LD	A,'O'
+	JR	PRN
+RDWRTE:	LD	A,'W'
+PRN:	CALL	PRINT
+STCHK:	LD	A,(CHNL5)
+	AND	A
+	JR	Z,STAT1
+STAT0:	DEC	A
+	PUSH	AF
+	LD	C,RCDSC
+	CALL	SDXBDOS
+	LD	(STORE),A
+	POP	AF
+	LD	E,A
+	LD	C,SELDSC
+	CALL	SDXBDOS
+	CALL	STAT2
+	LD	A,(STORE)
+	LD	E,A
+	LD	C,SELDSC
+	CALL	SDXBDOS
+	RET
+STAT1:	XOR	A
+	LD	(CHNL5),A
+STAT2:	LD	C,GETDPB
+	CALL	SDXBDOS
+	INC	HL
+	INC	HL
+	INC	HL
+	LD	A,(HL)
+	INC	A
+	SRL	A
+	SRL	A
+	SRL	A
+	LD	(DMA_DEF),A
+	INC	HL
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	LD	H,(HL)
+	LD	L,D
+	INC	HL
+	LD	(DMA_DEF+2),HL
+	LD	C,GETAA
+	CALL	SDXBDOS
+	EX	DE,HL
+	LD	HL,(DMA_DEF+2)
+	LD	A,L
+	SRL	H
+	RR	L
+	SRL	H
+	RR	L
+	SRL	H
+	RR	L
+	AND	007H
+	LD	C,A
+	EXX
+	LD	A,(DMA_DEF)
+	LD	E,A
+	LD	D,000H
+	LD	HL,00000H
+	EXX
+LOOP2:	LD	B,008H
+	CALL	ALLOC
+	DEC	HL
+	LD	A,H
+	OR	L
+	JR	NZ,LOOP2
+	LD	B,C
+	LD	A,B
+	AND	A
+	CALL	NZ,ALLOC
+	CALL	DRVLET
+	EXX
+	RST	010H
+	DB	086H			; write string, 6 characters
+	DB	'Space '
+	CALL	HEXDEC
+	RST	010H
+	DB	084H			; write string, 4 characters
+	DB	'k',00DH,00AH,00AH
+	RET
+;
+; Output a number in decimal
+;
+HEXDEC:	PUSH	DE
+	PUSH	AF
+	PUSH	BC
+	XOR	A
+	LD	(DMA_DEF+1),A
+	LD	BC,10000
+	CALL	DIGIT
+	LD	BC,1000
+	CALL	DIGIT
+	LD	BC,100
+	CALL	DIGIT
+	LD	BC,10
+	CALL	DIGIT
+	LD	A,L
+	ADD	A,'0'
+	CALL	PRINT
+	POP	BC
+	POP	AF
+	POP	DE
+	RET
+;
+DIGIT:	AND	A
+	LD	D,0
+LOOP3:	SBC	HL,BC
+	INC	D
+	JR	NC,LOOP3
+	LD	A,D
+	DEC	A
+	ADD	A,'0'
+	CP	'0'
+	JR	NZ,JMP3
+	LD	A,(DMA_DEF+1)
+	AND	A
+	LD	A,'0'
+	JR	NZ,JMP3
+	ADD	HL,BC
+	RET
+JMP3:	ADD	HL,BC
+	CALL	PRINT
+	LD	A,001H
+	LD	(DMA_DEF+00001H),A
+	RET
+;
+; Get allocation byte
+;
+ALLOC:	LD	A,(DE)
+	INC	DE
+LOOP1:	ADD	A,A
+	JR	C,ISUSE
+	EXX
+	ADD	HL,DE
+	EXX
+ISUSE:	DJNZ	LOOP1
+	RET
+;
+; Print name of requested file.
+; Uses FCB rather than input buffer.
+;
+NAMPR:	CALL	DRVLET
+	INC	HL
+	LD	B,8
+LOOPS:	LD	A,(HL)
+	INC	HL
+	CP	' '
+	JR	Z,MISS
+	CALL	PRINT
+MISS:	DJNZ	LOOPS
+	LD	A,'.'
+	CALL	PRINT
+	LD	B,3
+LOOPT:	LD	A,(HL)
+	RES	7,A
+	INC	HL
+	CALL	PRINT
+	DJNZ	LOOPT
+	RST	010H
+	DB	082H			; write string, 2 characters
+	DB	'  '
+	RET
+;
+; Print drive letter
+;
+DRVLET:	RST	010H
+	DB	082H			; write string, 2 characters
+	DB	00DH,00AH
+	LD	HL,CHNL5
+	LD	A,(HL)
+	AND	A
+	RET	Z
+	ADD	A,'A'-1
+	CALL	PRINT
+	LD	A,':'
+	CALL	PRINT
+	RET
+;
+END

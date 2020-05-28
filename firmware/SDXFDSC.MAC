@@ -1,0 +1,772 @@
+TITLE	SDXFDSC	SDX floppy disc driver
+
+; This is a reconstruction of the source for the SDX ROM.
+; A SDX ROM was disassembled using BE and BEZ80.
+; Symbols were taken from a PDF of a printed listing of the ROM.
+; This was post-processed using a custom script, to make it more M80-like.
+; Finally, salient text in the PDF was transcribed to this source.
+
+.Z80
+CSEG
+
+	INCLUDE	SDXCONF.INC
+	INCLUDE	SDXHIGH.INC
+;
+	IFT	SDXFDC
+
+	IFT	DRVB03 OR DRVB07
+;
+	IFT	DRVF51 OR DRVF52
+	EXT	ZINIT,ZCONFIG,ZREAD,ZWRITE
+	ENDIF
+;
+;
+;
+INITLZ::
+	XOR	A
+	LD	B,0FEH			; leave drive select unchanged
+	CALL	REPLACE
+	LD	A,0D0H			; force interrupt
+	OUT	(010H),A		; terminate any FDC commands
+	CALL	DELAY1
+	XOR	A
+	LD	HL,SWUF
+	LD	(HL),A			; (SWUF)=0 => not waiting for data
+	DEC	A
+	LD	B,6
+INILP:	INC	HL
+	LD	(HL),A
+	DJNZ	INILP
+
+	IFT	DRVF51 OR DRVF52
+	CALL	ZINIT
+	ENDIF
+
+	RET
+;
+;
+;
+EXCNFG::
+
+	IFT	DRVF51 OR DRVF52
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,ZCONFIG
+	ENDIF
+
+	PUSH	BC
+	PUSH	DE
+	LD	A,(CFGBYT)
+	CP	0FFH
+	JR	Z,CFGERR
+	LD	A,(DRVRQ)
+	AND	004H
+	JR	Z,CFGSM
+;
+CFGERR:	CALL	CFGCHK
+	LD	HL,00000H
+	POP	DE
+	POP	BC
+	LD	A,001H
+	AND	A
+	RET
+;
+CFGSM:	CALL	DPBGET
+	LD	A,H
+	OR	L
+	JR	Z,CFGERR
+	PUSH	HL
+	CALL	CTUPD
+	POP	HL
+	POP	DE
+	POP	BC
+	XOR	A
+	RET
+;
+; Searches through PBASE for a match against CFGBYT
+; If no match, HL=0, else HL<>0
+;
+DPBGET:	LD	A,(CFGBYT)
+	LD	B,A
+	CP	0FFH
+NODPB:	LD	HL,0
+	RET	Z
+	LD	HL,PBASE
+	LD	DE,15
+DPBLP:	LD	A,(HL)
+	CP	0FFH
+	JP	Z,NODPB
+	CP	B
+	INC	HL
+	RET	Z
+	ADD	HL,DE
+	JR	DPBLP
+;
+; Config table update
+;
+CTUPD:	LD	A,(DRVRQ)
+	AND	007H
+	LD	HL,CFGTAB
+	LD	E,A
+	LD	D,000H
+	ADD	HL,DE
+	LD	A,(CFGBYT)
+	LD	(HL),A
+	RET
+;
+; Store config byte for drive (DRVRQ) at (CFGBYT)
+;
+CFGCHK:	LD	HL,CFGTAB
+	LD	A,(DRVRQ)
+	AND	007H
+	LD	E,A
+	LD	D,000H
+	ADD	HL,DE
+	LD	A,(HL)
+	LD	(CFGBYT),A
+	CP	0FFH
+	RET
+;
+; Read
+;
+EXRD::
+
+	IFT	DRVF51 OR DRVF52
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,ZREAD
+	ENDIF
+
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	CALL	CFGCHK
+	JR	Z,EEXIT
+	LD	HL,EXIT
+	PUSH	HL
+	LD	A,(DRVRQ)
+	AND	004H
+	RET	NZ
+	JP	RDSM
+;
+; Write
+;
+EXWR::
+
+	IFT	DRVF51 OR DRVF52
+	LD	A,(DRVRQ)
+	CP	4
+	JP	NC,ZWRITE
+	ENDIF
+
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	CALL	CFGCHK
+	JP	Z,EEXIT
+	LD	HL,EXIT
+	PUSH	HL
+	LD	A,(DRVRQ)
+	AND	004H
+	RET	NZ
+	PUSH	BC
+	CALL	WRSM
+	POP	BC
+	RET	NZ
+	DEC	C
+	JP	Z,WTIDY
+	RET
+; drive is not configured
+EEXIT:	LD	A,007H
+;
+; exit point for EXRD and EXWR
+; returns A=0, Z, if operation successful
+EXIT:	PUSH	AF
+	XOR	A
+	LD	B,004H			; disable motor on
+	CALL	REPLACE
+	POP	AF
+	AND	A
+	POP	HL
+	POP	DE
+	POP	BC
+	RET
+;
+; Block sector read routine
+;
+BLKRD::	PUSH	BC
+	LD	B,10
+BLKLP:	DEC	B
+	JR	Z,BLKRE
+	CALL	EXRD
+	AND	A
+	JR	NZ,BLKLP
+	LD	HL,(DMARQ)
+	LD	DE,00080H
+	ADD	HL,DE
+	LD	(DMARQ),HL
+	LD	A,(SECRQ)
+	INC	A
+	CP	27
+	CALL	Z,NTRK
+	LD	(SECRQ),A
+	POP	BC
+	DJNZ	BLKRD
+	XOR	A
+	RET
+;
+BLKRE:	POP	BC
+	LD	A,001H
+	AND	A
+	RET
+;
+; Next track
+;
+NTRK:	LD	A,(TRKRQ)
+	INC	A
+	LD	(TRKRQ),A
+	LD	A,001H
+	RET
+;
+; --- Intermediate disc rountines
+;
+
+;
+; Sector read
+;
+RDSM:	CALL	WTIDY
+	RET	NZ
+	CALL	DDD
+	JR	NZ,DRDSM
+	JP	READSM
+DRDSM:	CALL	NADITS
+	CALL	NZ,PREAD
+	RET	NZ
+	CALL	TX1
+	LD	HL,(DMARQ)
+	EX	DE,HL
+	CALL	QSIDE
+	LD	HL,DBUF
+	PUSH	DE
+	LD	E,A
+	LD	D,000H
+	ADD	HL,DE
+	POP	DE
+	LD	BC,00080H
+	LDIR
+	XOR	A
+	RET
+;
+; Sector write
+;
+WRSM:	CALL	DDD
+	JP	NZ,DWRIT
+	CALL	WTIDY
+	RET	NZ
+	CALL	WRITESM
+	RET
+DWRIT:	CALL	QSIDE
+	JP	NZ,DWR2
+	CALL	WTIDY
+	RET	NZ
+	LD	HL,(DMARQ)
+	LD	DE,DBUF
+	LD	BC,00080H
+	LDIR
+	CALL	TX1
+	LD	A,0FFH
+	LD	(SWUF),A
+	INC	A
+	RET
+DWR2:	CALL	NADITS
+	JP	Z,DWR3
+	CALL	WTIDY
+	RET	NZ
+	CALL	PREAD
+	RET	NZ
+	CALL	TX1
+DWR3:	LD	HL,(DMARQ)
+	LD	DE,DBUF+00080H
+	LD	BC,00080H
+	PUSH	HL
+	LDIR
+	LD	HL,DBUF
+	LD	(DMARQ),HL
+	CALL	WRITESM
+	POP	HL
+	LD	(DMARQ),HL
+	LD	(SWUF),A
+	RET
+;
+PREAD:	LD	HL,(DMARQ)
+	PUSH	HL
+	LD	HL,DBUF
+	LD	(DMARQ),HL
+	CALL	READSM
+	POP	HL
+	LD	(DMARQ),HL
+	RET
+;
+QSIDE:	LD	A,(SECRQ)
+	RRA
+	CCF
+	LD	A,000H
+	RRA
+	OR	A
+	RET
+;
+NADITS:	LD	HL,DRVRQ
+	LD	DE,BFID
+	LD	B,4
+NADLP:	LD	A,(DE)
+	CP	(HL)
+	RET	NZ
+	INC	HL
+	INC	DE
+	DEC	B
+	JP	NZ,NADLP
+	LD	A,(DE)
+	DEC	A
+	AND	0FEH
+	LD	B,A
+	LD	A,(HL)
+	DEC	A
+	AND	0FEH
+	CP	B
+	RET
+;
+TX1:	LD	HL,DRVRQ
+	LD	DE,BFID
+	LD	BC,6
+	LDIR
+	RET
+;
+WTIDY:	LD	A,(SWUF)
+	OR	A
+	RET	Z
+	CALL	SWAP
+	LD	DE,TDBUF
+	LD	HL,DBUF
+	LD	BC,00080H
+	LDIR
+	CALL	PREAD
+	LD	DE,DBUF
+	LD	HL,TDBUF
+	LD	BC,00080H
+	LDIR
+	OR	A
+	JP	NZ,WTY1
+	LD	HL,DBUF
+	LD	(DMARQ),HL
+	CALL	WRITESM
+	LD	(SWUF),A
+WTY1:	PUSH	AF
+	CALL	SWAP
+	POP	AF
+	RET
+;
+SWAP:	LD	HL,BFID
+	LD	DE,DRVRQ
+	LD	B,8
+SWP1:	LD	C,(HL)
+	LD	A,(DE)
+	LD	(HL),A
+	LD	A,C
+	LD	(DE),A
+	INC	DE
+	INC	HL
+	DEC	B
+	JP	NZ,SWP1
+	RET
+;
+DDD:	LD	A,(CFGBYT)
+	AND	002H
+	RET	Z
+	CALL	D1213
+	RET	NZ
+	OR	A
+	RET
+;
+; --- Hardware interface
+;
+
+;
+; Read drive, track, sector to DMA address
+; Return Z if successful, else NZ
+;
+READSM:	CALL	RWGO
+	RET	NZ
+	LD	A,(EFLAG)
+	OR	080H
+	OUT	(010H),A
+	CALL	DISCRD
+	IN	A,(010H)
+	AND	09CH
+	RET	Z
+RWEF:	LD	(CFGBYT),A
+	AND	010H
+	CALL	NZ,RCBRQ
+	LD	A,006H
+	AND	A
+	RET
+;
+DISCRD:	DI
+	LD	HL,(DMARQ)
+	LD	C,013H
+DISCR1:	IN	A,(014H)
+	AND	0C0H
+	JR	Z,DISCR1
+	BIT	6,A
+	JR	NZ,DISCR2
+	INI
+	JP	DISCR1
+DISCR2:	EI
+	RET
+;
+; Write drive, track, sector from DMA address
+; Return Z if successful, else NZ
+;
+WRITESM:
+	CALL	RWGO
+	RET	NZ
+	LD	A,(EFLAG)
+	OR	0A0H
+	OUT	(010H),A
+	CALL	DISCWR
+	IN	A,(010H)
+	AND	0FCH
+	JR	NZ,RWEF
+	RET
+;
+DISCWR:	DI
+	LD	HL,(DMARQ)
+	LD	C,013H
+DISCW1:	IN	A,(014H)
+	AND	0C0H
+	JR	Z,DISCW1
+	BIT	6,A
+	JR	NZ,DISCW2
+	OUTI
+	JP	DISCW1
+DISCW2:	EI
+	RET
+;
+; Called by READSM and WRITESM
+; Also called from SDXMAIN, as part of initialisation
+; Returns Z if successful, else NZ
+;
+RWGO::	CALL	DRVSET
+	RET	NZ
+	CALL	WAIT2
+	RET	NZ
+	IN	A,(011H)
+	LD	HL,(PTRKP)
+	LD	(HL),A
+	LD	A,(LCA)
+	OUT	(011H),A
+	IN	A,(014H)
+	AND	080H
+	RET
+;
+;
+;
+RCBRQ:	LD	HL,(PTRKP)
+	LD	(HL),0FFH
+	RET
+;
+; Select drive (DRVRQ)
+; Returns Z if successful, else NZ
+;
+DRVSET:	CALL	WAIT
+	XOR	A
+	LD	(EFLAG),A
+	LD	A,(DRVRQ)
+	OR	00CH
+	LD	B,00DH
+	CALL	REPLACE
+	LD	A,(DRVRQ)
+	LD	B,A
+	LD	A,(CURDRV)
+	CP	0FFH
+	JR	Z,SKIP1
+	CP	B
+	JR	Z,SKIP1
+	IN	A,(011H)
+	OUT	(013H),A
+	LD	A,010H
+	OUT	(010H),A
+	CALL	WAIT1
+SKIP1:	LD	A,B
+	LD	(CURDRV),A
+	LD	E,A
+	LD	D,000H
+	LD	HL,TRACKS
+	ADD	HL,DE
+	LD	(PTRKP),HL
+	LD	A,(HL)
+	OUT	(011H),A
+	LD	A,(CFGBYT)
+	AND	001H
+	JR	Z,SKIP2
+	IN	A,(014H)
+	XOR	00FH
+	AND	002H
+	JP	Z,DRVSE5
+SKIP2:	LD	A,(CFGBYT)
+	AND	004H
+	JR	Z,SKIP3
+	IN	A,(014H)
+	XOR	00FH
+	AND	004H
+	JP	Z,DRVSE5
+SKIP3:	CALL	DDD
+	LD	A,000H
+	JR	Z,SKIP4
+	DEC	A
+SKIP4:	LD	B,010H
+	CALL	REPLACE
+	IN	A,(011H)
+	CP	0FFH
+	JR	NZ,SKIP6
+	CALL	RECALB
+	RET	NZ
+	LD	A,004H
+	LD	(EFLAG),A
+SKIP6:	LD	HL,(TRKRQ)
+	LD	A,(SECRQ)
+	LD	E,A
+	LD	D,000H
+	LD	A,01AH
+	LD	(SECMAX+1),A		; bug! we can't update ROM
+	LD	A,(CFGBYT)
+	LD	C,A
+	AND	010H
+	CALL	Z,CALC5
+	LD	A,C
+	AND	002H
+	CALL	NZ,CALCD
+	LD	A,C
+	AND	001H
+	CALL	NZ,CALCS
+	LD	A,L
+	LD	(LCA),A
+;
+; Deleted 96 TPI check here
+;
+SKIPC:	LD	A,D
+	LD	D,L
+	RRCA
+	LD	B,002H
+	CALL	REPLACE
+	LD	A,E
+	OUT	(012H),A
+	IN	A,(011H)
+	CP	D
+	LD	A,000H
+	RET	Z
+	LD	A,004H
+	LD	(EFLAG),A
+	LD	A,D
+	OUT	(013H),A
+;
+; Move disk head to track given by FDC track register
+; Returns A=0, Z if seek successful
+;
+SEEK:	LD	A,018H
+	JR	SKTRK
+;
+; Move head to track 00
+;
+RECALB:	LD	A,008H
+;
+SKTRK:	LD	B,A
+	IN	A,(014H)
+	XOR	00FH
+	AND	008H
+	LD	A,000H
+	JR	NZ,SKTR1
+	LD	A,002H
+SKTR1:	OR	B
+	OUT	(010H),A
+	CALL	WAIT1
+	CALL	DELAY1
+	IN	A,(010H)
+	AND	010H
+	RET	Z
+	LD	A,004H
+	RET
+;
+; Do the conversion from logical (26 sector) track and sector to LBA,
+; and then from LBA to physical (16 sector) track and sector.
+;
+CALC5:	PUSH	DE
+	ADD	HL,HL
+	PUSH	HL
+	ADD	HL,HL
+	ADD	HL,HL
+	PUSH	HL
+	ADD	HL,HL
+	POP	DE
+	ADD	HL,DE
+	POP	DE
+	ADD	HL,DE
+	POP	DE
+	ADD	HL,DE
+	DEC	HL
+	LD	A,L
+	AND	00FH
+	INC	A
+	LD	E,A
+	CALL	CALDIV
+	CALL	CALDIV
+	CALL	CALDIV
+	CALL	CALDIV
+	LD	A,010H
+	LD	(SECMAX+1),A		; bug! we can't update ROM
+	RET
+;
+;
+;
+CALCD:	CALL	D1213
+	JR	NZ,CALD0
+	AND	A
+	RET	Z
+	INC	HL
+CALD0:	CALL	CALDIV
+	LD	A,E
+	JR	NC,CALD1
+SECMAX:	LD	A,010H			; !!! patch me if you can
+	ADD	A,E
+CALD1:	DEC	A
+	SCF
+	CCF
+	RRA
+	LD	E,A
+	INC	E
+	RET
+;
+;
+;
+CALCS:	CALL	CALDIV
+	RET	NC
+	LD	D,005H
+	RET
+;
+;
+;
+CALCT:	ADD	HL,HL
+	RET
+;
+; Divide HL by 2
+; Must be a straight port from 8080
+;
+CALDIV:	SCF
+	CCF
+	LD	A,H
+	RRA
+	LD	H,A
+	LD	A,L
+	RRA
+	LD	L,A
+	RET
+;
+;
+;
+D1213:	LD	A,(CFGBYT)
+	CP	012H
+	JR	Z,D12131
+	CP	013H
+	RET	NZ
+D12131:	PUSH	HL
+	LD	HL,(TRKRQ)
+	LD	A,H
+	OR	L
+	CP	A
+	POP	HL
+	RET
+;
+; Update the hardware status byte
+; A = new value, B = mask for old value
+; Those bits which are zeros in mask remain unchanged
+;
+REPLACE:
+	AND	B
+	LD	C,A
+	LD	A,B
+	CPL
+	LD	B,A
+	LD	A,(LSTOUTX)
+	AND	B
+	OR	C
+	LD	(LSTOUTX),A
+	OUT	(014H),A
+	RET
+;
+;
+;
+DELAY1:	LD	A,032H ; ='2'
+DELY11:	DEC	A
+	JP	NZ,DELY11
+	RET
+;
+; Delay, then wait until FDC not busy
+;
+WAIT:	CALL	DELAY1
+	IN	A,(010H)
+	AND	001H
+	JR	NZ,WAIT
+	RET
+;
+; Delay, then wait until FDC has finished command
+;
+WAIT1:	CALL	DELAY1
+	IN	A,(014H)
+	AND	040H ; ='@'
+	JR	Z,WAIT1
+	RET
+;
+DRVSE5:	LD	A,005H
+	AND	A
+	RET
+;
+;
+;
+WAIT2:	CALL	TEST
+	RET	Z
+	LD	B,008H
+	XOR	A
+	CALL	REPLACE
+	LD	A,00CH
+	LD	B,A
+	CALL	REPLACE
+	CALL	DELAY2
+	CALL	TEST
+	RET	Z
+	LD	A,009H
+	RET
+;
+;
+;
+DELAY2:	LD	BC,800
+DEL22:	CALL	DELAY1
+	DEC	BC
+	LD	A,C
+	OR	B
+	RET	Z
+	JR	DEL22
+;
+;
+;
+TEST:	IN	A,(014H)
+	BIT	5,A
+	JR	Z,TEST1
+	XOR	A
+	RET
+TEST1:	INC	A
+	RET
+
+	ENDIF				; DRVB03 OR DRVB07
+
+	ENDIF				; SDXFDC
+;
+END

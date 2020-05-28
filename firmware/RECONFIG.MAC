@@ -1,0 +1,1219 @@
+.Z80
+CSEG
+;
+;
+;
+;		*****************************************
+;		*					*
+;		*	 DRIVE CONFIGURE PROGRAM	*
+;		*					*
+;		*****************************************
+;
+; Special version for REMEMOTECH or REMEMOrizer.
+; Modified Feb 2012, A.Key
+;
+;
+;Amendments:
+;
+;8/10/85 V1.0	Modified for RAM disc.
+;
+;4/11/86 V1.1	If assembler equate ITALY is true, type 51 is 480K
+;		RAM disc, else type 51 is 512K RAM disc.
+;		Deleted disc diameters in disc type descriptions.
+;
+;25/2/12 V1.2	Add support for types 18..1F and type 52
+;		Improved diagnostics if it fails
+;		Avoid allocating high memory when we can
+;18/10/15 V1.3	Revise description of types 18..1F
+;
+;Drive descriptions changed to have capital letters - AK
+;
+FALSE	EQU	0
+TRUE	EQU	NOT FALSE
+ITALY	EQU	FALSE
+;
+;
+;
+;
+@V1	EQU	1
+@V2	EQU	3
+;
+BEL	EQU	07H
+LF	EQU	0AH
+CR	EQU	0DH
+EOF	EQU	1AH
+;
+BOOT	EQU	0000H
+BDOS	EQU	0005H
+;
+FREESP	EQU	0040H
+STMSG	EQU	0042H
+BOOTDR	EQU	0044H
+TOAM	EQU	0046H
+;
+DBUFF	EQU	0080H
+;
+XLTAB	EQU	0FFA0H
+DRVRQ	EQU	0FFE8H
+CFGBYT	EQU	0FFE9H
+TRKRQ	EQU	0FFEAH
+SECRQ	EQU	0FFECH
+DMARQ	EQU	0FFEEH
+XCONFIG	EQU	0FFF0H
+XREAD	EQU	0FFF3H
+;
+;
+;
+CONFIG::
+;
+;The following version number string is harmless code.
+;
+	DB CR,LF,'*V',@V1+'0','.',@V2+'0',CR,LF,EOF
+;
+;Now start program proper.
+;
+	LD (ENTSP),SP		;Save entry satck pointer
+	LD SP,STACK		;Set program stack
+	LD A,(DRVRQ)
+	LD (ENTDR),A		;Save default drive
+;
+	LD C,0
+	CALL SELDRV		;Select drive A
+	LD (DPHSTA),HL		;Store DPH address for drive A
+;
+;Now examine whether there is a command line tail.
+;
+	LD HL,DBUFF
+	LD A,(HL)
+	OR A
+	JP NZ,PARAMS		;Jump if parameters specified
+;
+;Here if there is no command tail.
+;The default drive is drive A.
+;
+	LD HL,0
+	LD (TRKRQ),HL		;Set track to 0
+	INC HL
+	LD (SECRQ),HL		;Set sector to 1
+	LD HL,1000H
+	LD (DMARQ),HL		;Set DMA to 1000H
+	CALL XREAD		;Read track 0 sector 1 of drive A
+;
+	LD C,0
+	CALL SELDPH		;Select drive A (again!)
+	LD A,L			;HL -> DPH for drive A
+	OR H
+	JP Z,BOOT		;Re-boot if drive A does not exist
+;
+	LD DE,8
+	ADD HL,DE		;HL -> directory buffer address
+	LD E,(HL)
+	INC HL
+	LD D,(HL)		;DE -> directory buffer
+	EX DE,HL
+	LD (DPHBUF+8),HL	;Store address of directory buffer
+;
+;Now try to select each one of the eight drives in turn.
+;If drive cannot be selected, configure the drive using
+;a value from the first record on drive A just read.
+;
+	LD HL,1003H		;HL -> fourth byte of first record
+	LD C,1			;Start with drive B
+CONFG1:
+	LD A,(HL)		;Get configuration byte
+	CP 0FFH
+	JR Z,CONFG2		;Jump if configuration byte is FFH
+;
+	PUSH HL
+	CALL SELDPH		;DE = DPH for drive selected if successful
+	LD A,L
+	OR H			;NZ if no drive select error
+	POP HL
+	JR NZ,CONFG2		;Jump if drive select successful
+;
+;Here if drive select not successful.
+;
+	LD A,(HL)
+	LD (CFGBYT),A		;Store configuration byte
+	LD A,C
+	DEC A
+	LD (DRVRQ),A		;Store drive code
+	PUSH HL
+	CALL XCONFIG		;Configure drive
+	POP HL
+	OR A
+	JR NZ,CFGERR		;Jump if configuration error
+;
+;Here if drive selected and configured successfully.
+;C = drive code (1 for drive B, etc.),
+;DE -> DPH for drive, HL -> first record on drive A.
+;
+	PUSH BC
+	PUSH HL
+	PUSH DE
+	CALL SETDPH		;Set up DPH buffer
+	JR C,CFGERR		;Jump if out of space
+	LD HL,DPHBUF
+	POP DE
+	LD BC,16
+	LDIR			;Copy DPH
+	POP HL
+	POP BC
+;
+;Here if drive can be selected successfully.
+;Test whether any more drives to select.
+;
+CONFG2:
+	INC C			;Increment drive number
+	INC HL			;Increment record pointer
+	LD A,C
+	CP 9
+	JR NZ,CONFG1		;Jump if more drives
+;
+;Now print disc configuration status and restore
+;entry values before returning to CP/M.
+;
+	CALL PRSTAT		;Print status
+	LD HL,DBUFF
+	LD (DMARQ),HL		;Restore DMA address
+	LD A,(ENTDR)		;Get default drive on entry
+	INC A
+	LD C,A
+	CALL SELDPH		;Re-select default drive
+	LD SP,(ENTSP)		;Restore entry stack pointer
+	RET			;Return to CP/M
+;
+;
+;
+;CFGERR is called when there is a configuration error.
+;Prints error message and configuration status,
+;then warm-boots.
+;
+CFGERR:
+	LD C,9
+	LD DE,EMESS3
+	CALL BDOS		;Print error message
+	CALL PRSTAT		;Print status
+	JP BOOT			;Return to CP/M
+;
+;
+;
+;PARAMS interprets command line tail.
+;On entry, A = length of tail, HL -> length of tail.
+;
+PARAMS:
+	LD C,A			;C = length of tail
+	LD B,0
+	INC HL			;Skip space
+	LD (COMM),HL		;Store HL -> first character of tail
+	ADD HL,BC
+	LD (HL),CR		;Add CR to end of command
+;
+;Now find next drive letter.
+;
+PARAM1:
+	CALL RDDRV		;NZ, A = 0 if valid drive letter found
+	JP Z,SYNER3		;Jump if finished command
+	OR A
+	LD IX,EMES2A		;'BAD DRIVE LETTER'
+	JP NZ,SYNERR		;Jump if drive letter not valid
+;
+;Here if valid drive letter found.
+;C = 0 for drive B, C = 1 for drive C, etc.
+;
+	LD A,C
+	LD (DRVRQ),A		;Store drive
+;
+;Now find drive configuration type.
+;
+	CALL RDCFG
+	LD IX,EMES2B		;'BAD DRIVE TYPE'
+	JP NZ,SYNERR		;Jump if type not valid
+;
+	LD A,L
+	LD (DTYPE),A		;Store drive type
+	LD (CFGBYT),A		;Store configuration byte
+	CP 0FFH
+	LD IX,EMES2C		;'DRIVE SELECTED BUT NOT CONFIGURED'
+	JP Z,SYNERR		;Jump if type not valid
+;
+;Here if both drive and drive type valid.
+;
+	LD A,(DRVRQ)		;Get drive
+	INC A			;A = 1 for drive B, etc
+	LD C,A
+	CALL SELDPH		;Select drive
+	LD A,L
+	OR H			;Z if drive select error
+	EX DE,HL		;HL -> DPH for drive
+	LD (DPHST),HL		;Store address of DPH
+;
+	PUSH AF			;Save zero flag
+	LD DE,DPHBUF
+	LD BC,16		;Copy DPH into buffer
+	LDIR
+	POP AF			;Restore zero flag
+	JR Z,PARAM2		;Jump if drive select error
+;
+;Here if drive can be selected.
+;Test whether drive is already configured.
+;
+	LD A,0FFH
+	LD (CFGBYT),A
+	CALL XCONFIG		;Configure drive
+	LD A,(DTYPE)		;Get drive type
+	LD B,A
+	LD A,(CFGBYT)		;Get configuration byte
+	LD C,A
+	CP 0FFH
+	LD IX,EMES2D		;'DRIVE NOT CONFIGURED'
+	JR Z,SYNERR		;Jump if configuration error
+	CP B
+	JR Z,PARAM1		;Jump if configuration unchanged
+;
+;Here if configuration different.
+;Test whether drive types compatible.
+;B = (DTYPE), A = C = (CFGBYT).
+;
+	AND 0F0H		;Keep only bits 4-7 of (CFGBYT)
+	LD C,A
+	LD A,B
+	AND 0F0H		;Keep only bits 4-7 of (DTYPE)
+	CP C
+	LD IX,EMES2E		;'INCOMPATIBLE DRIVE TYPE CHANGE'
+	JR NZ,SYNERR		;Jump if drives incompatible
+;
+;Here if drive types refer to compatible devices,
+;e.g. both 5" drives. A = disc type (bits 0-2 zeroed).
+;Check whether drive can be re-configured.
+;
+	CALL CHKREC
+	LD IX,EMES2F		;'NON-RECONFIGURABLE DRIVE TYPE'
+	JR NZ,SYNERR		;Jump if cannot re-configure drive
+;
+	LD A,B
+	LD (CFGBYT),A		;Store configuration byte
+	CALL XCONFIG		;Configure drive
+	OR A
+	LD IX,EMES2G		;'CONFIGURATION FAILURE'
+	JR NZ,SYNERR		;Jump if configure error
+;
+	CALL SETDPH		;Set up DPH buffer
+	LD IX,EMES2H		;'OUT OF SPACE'
+	JR C,SYNERR		;Jump if out of space
+;
+;Now copy contents of DPHBUF into DPH for drive just configured.
+;
+	LD HL,(DPHST)
+	LD DE,DPHBUF
+	EX DE,HL
+	LD BC,16
+	LDIR			;Copy DPH
+;
+;Test whether drive configured is also drive A.
+;
+	LD A,(BOOTDR)		;Get boot drive
+	DEC A
+	LD B,A
+	LD A,(DRVRQ)
+	CP B
+	JP NZ,PARAM1		;Get next parameter if not drive A
+;
+;Here if drive configured is drive A.
+;
+	LD C,0
+	CALL SELDPH		;Select drive A (DE -> DPH  for drive A)
+	LD HL,DPHBUF
+	LD BC,16
+	LDIR			;Copy DPH
+	LD A,0FFH
+	LD (PAUSE),A		;Indicates wait before re-booting
+	JP PARAM1		;Get next parameter
+;
+;Here if drive and drive type in command line valid
+;but drive cannot be selected.
+;
+PARAM2:
+	CALL XCONFIG		;Configure drive
+	OR A
+	LD IX,EMES2I		;'CONFIGURATION FAILULRE (NON-SELECTED DRIVE)'
+	JR NZ,SYNERR		;Jump if configuration error
+	CALL SETDPH		;Set up DPH buffer
+	LD IX,EMES2J		;'OUT OF SPACE (NON-SELECTED DRIVE)'
+	JR C,SYNERR		;Jump if out of space
+	LD DE,DPHBUF
+	LD HL,(DPHST)
+	EX DE,HL
+	LD BC,16
+	LDIR			;Copy DPH
+	JP PARAM1		;Get next parameter
+;
+;
+;
+;SYNERR is called if configuration error in command line.
+;IX -> additional message to display
+;
+SYNERR:
+	LD DE,EMESS1
+	LD C,9
+	CALL BDOS		;Print first part of error message
+;
+;Now calculate number of spaces to print
+;before '^' character.
+;
+	LD HL,(COMM)		;HL -> error in command line
+	LD DE,-128		;-128 = FF80H
+	ADD HL,DE
+;
+;Print L-1 spaces.
+;
+SYNER1:
+	DEC L
+	JR Z,SYNER2
+	CALL PRSPA
+	JR SYNER1
+;
+;Now print second part of error message.
+;
+SYNER2:
+	LD C,9
+	LD DE,EMESS2
+	CALL BDOS		;Print error message
+;
+	LD C,9
+	PUSH IX
+	POP DE
+	CALL BDOS		;Print additional error detail
+;
+	LD C,9
+	LD DE,EMESS3
+	CALL BDOS		;Print CONFIGURATION ABORTED
+;
+;Now print disc configuration status.
+;
+SYNER3:
+	CALL PRSTAT
+	LD A,(PAUSE)
+	OR A
+	JR Z,SYNER4		;Jump if pause need not pause
+;
+;Here if must pause before re-booting.
+;
+	LD C,9
+	LD DE,EMESS4
+	CALL BDOS		;Print pause message
+	LD C,1
+	CALL BDOS		;Wait for key to be pressed
+SYNER4:
+	JP BOOT			;Re-boot
+;
+;
+;
+;CHKREC checks whether drive can be re-configured.
+;On entry, A = disc type (bits 0-2 zeroed).
+;On exit, Z if drive can be re-configured, else NZ.
+;Affects only AF.
+;
+CHKREC:
+	RLCA
+	RLCA
+	RLCA
+	RLCA
+	PUSH BC
+	PUSH HL
+	LD C,A
+	LD B,0
+	LD HL,RECFGT		;HL -> re-configure table
+	ADD HL,BC
+	LD A,(HL)
+	OR A			;Z if can re-configure
+	POP HL
+	POP BC
+	RET
+;
+;
+;
+;PRSPA prints a space to the screen.
+;Preserves HL.
+;
+PRSPA:
+	PUSH HL
+	LD C,2
+	LD E,' '
+	CALL BDOS		;Print space
+	POP HL
+	RET
+;
+;
+;
+;RDDRV scans command line for drive letter (followed by ':').
+;On exit, NZ, A = 0, C = drive code if valid (C = 0 for drive B, etc);
+;NZ, A = 1 if drive letter not valid; Z if at end of command line.
+;
+RDDRV:
+	LD HL,(COMM)		;HL -> start of comand tail
+RDDR1:
+	LD A,(HL)		;A = next character in tail
+	INC HL			;Increment pointer
+	CP CR
+	RET Z			;Return if at end of tail
+	CP ':'
+	JR NZ,RDDR1		;Jump if not ':'
+;
+;Here if ':' found in command tail.
+;
+	DEC HL
+	DEC HL			;HL -> drive letter hopefully
+	LD A,(HL)		;A = drive letter
+	CP 'B'
+	JR C,RDDR2		;Jump if drive < 'B'
+	CP 'I'+1
+	JR NC,RDDR2		;Jump if drive > 'I'
+;
+;Here,  A = valid drive letter = 'B'-'I'.
+;
+	DEC A			;A = 41H-48H
+	DEC A			;A = 40H-47H
+	AND 07H			;A = 0 for drive B, 1 for drive C, etc
+	LD C,A			;C = drive number
+	XOR A			;A = 0 indicates valid drive letter
+	CP 0FFH			;NZ indicates not finished
+	INC HL
+	INC HL			;HL -> ':'
+	LD (COMM),HL		;Store command tail pointer
+	RET
+;
+;Here if drive letter in command not valid.
+;
+RDDR2:
+	LD A,1			;A = 1 indicates invalid drive letter
+	OR A			;NZ indicates not finished
+	RET
+;
+;
+;
+;RDCFG scans command line for next drive configuration type.
+;On exit, Z, HL = configuration if found, else NZ.
+;
+RDCFG:
+	LD HL,(COMM)		;HL -> command tail
+	LD A,(HL)		;A = next character
+	LD HL,0
+	CALL DELIM		;Z if delimiter
+	JR NZ,RDCFG1
+;
+;Here if character in command is a delimiter.
+;
+	LD A,1
+	OR A			;NZ
+	RET
+;
+;Here if character in command is not a delimiter.
+;
+RDCFG1:
+	CP '0'
+	JR C,RDCFG3		;Jump if char < '0'
+	CP '9'+1
+	JR C,RDCFG2		;Jump if char not > '9'
+	CP 'A'
+	JR C,RDCFG4		;Jump if char < 'A'
+	CP 'F'+1
+	JR NC,RDCFG4		;Jump if char > 'F'
+	ADD A,9			;A = 4AH-4FH
+;
+;Here, A = 30H-39H for '0'-'9' or 4AH-4FH for 'A'-'F'.
+;
+RDCFG2:
+	AND 0FH			;A = 00H-0FH
+	LD C,A
+	LD B,0			;BC = 0000H-000FH
+	ADD HL,HL		;HL = HL*2
+	ADD HL,HL		;HL = HL*4
+	ADD HL,HL		;HL = HL*8
+	ADD HL,HL		;HL = HL*16
+	ADD HL,BC		;HL = HL*16+BC
+	PUSH HL
+	LD HL,(COMM)		;Get command pointer
+	INC HL			;Increment pointer
+	LD (COMM),HL		;Store command pointer
+	LD A,(HL)		;A = next character in command
+	POP HL
+	JR RDCFG1
+;
+;Here if character in command is not a hexadecimal digit.
+;
+RDCFG3:
+	CALL DELIM		;Z if delimiter
+	JR NZ,RDCFG4		;Jump if not a delimiter
+	XOR A			;Z
+	RET
+;
+;Here if syntax error in command line.
+;
+RDCFG4:
+	LD A,0FFH
+	OR A			;NZ
+	RET
+;
+;
+;
+;DELIM tests whether character in A is a space,
+;comma or carriage-return. On exit, Z if so, else NZ.
+;
+DELIM:
+	CP ' '
+	RET Z
+	CP ','
+	RET Z
+	CP CR
+	RET
+;
+;
+;
+;SELDPH selects drive given by C (C = 0 for drive A, etc.)
+;On exit, HL -> DPH for selected drive.
+;Preserves BC.
+;
+SELDPH:
+	PUSH BC			;Save drive
+	LD L,C
+	LD H,0			;HL = C
+	ADD HL,HL		;HL = C*2
+	ADD HL,HL		;HL = C*4
+	ADD HL,HL		;HL = C*8
+	ADD HL,HL		;HL = C*16
+	EX DE,HL
+	LD HL,(DPHSTA)		;HL -> start of DPH table
+	ADD HL,DE		;HL -> DPH for drive given by C
+	EX DE,HL
+	PUSH DE			;Save DPH address
+	CALL SELDRV		;Select drive given by C
+	POP DE			;Restore DPH address
+	POP BC			;Restore drive
+	RET
+;
+;
+;
+;SELDRV selects the drive given by C.
+;
+SELDRV:
+	LD HL,(0001H)		;HL -> BIOS warm-boot jump
+	LD DE,0018H
+	ADD HL,DE		;HL -> BIOS select drive jump
+	JP (HL)			;Select drive
+;
+;
+;
+;SETDPH sets various addresses in DPHBUF and adjusts
+;bottom of free space for allocation and check vectors.
+;
+SETDPH:
+	LD A,(CFGBYT)		;Get configure byte
+	CP 10H			;Z if type 10
+	LD HL,XLTAB		;HL -> type 10 translation table
+	JR Z,SETDP1		;Jump if type 10
+;
+	LD HL,0000H
+SETDP1:
+	LD (DPHBUF),HL		;Store address of translation table
+	CALL XCONFIG		;HL -> DPB for disc type
+
+; Each DPH has
+;   a pointer to the DPB
+;   a pointer to an allocation vector
+;   a pointer to a check vector
+; The last two get allocated out of high memory, and by the time you've
+; configured a couple of large Silicon Discs, you will have run out of memory.
+; Sometimes we want to reconfigure drive types back and forth.
+; So avoid allocating new high memory, if its the same disk type,
+; or at least for the same geometry (ie: the same DPB).
+	LD DE,(DPHBUF+10)
+	EX DE,HL
+	AND A
+	SBC HL,DE
+	RET Z
+	EX DE,HL
+
+	LD (DPHBUF+10),HL	;Store address of DPB
+	LD BC,5
+	ADD HL,BC		;HL -> DSM in DPB
+	LD E,(HL)
+	INC HL
+	LD D,(HL)		;DE = DSM in DPB
+	ADD HL,BC		;HL -> CKS in DPB
+	LD C,(HL)
+	INC HL
+	LD B,(HL)		;BC = CKS in DPB
+	LD HL,(FREESP)		;HL -> bottom of free space
+	LD (DPHBUF+14),HL	;Store address of allocation vector
+;
+;Here, BC = CKS in DPB, DE = DSM in DPB,
+;HL -> bottom of free space = allocation vector address.
+;
+	SRL D
+	RR E			;DE = DSM/2
+	SRL D
+	RR E			;DE = DSM/4
+	SRL D
+	RR E			;DE = DSM/8
+	INC DE			;DE = DSM/8+1
+	ADD HL,DE		;HL -> first byte after allocation vector
+	LD (DPHBUF+12),HL	;Store address of checksum vector
+	ADD HL,BC		;HL -> first byte after check vector
+	CALL CHKTOAM
+	RET C			;Return if not enough room
+	CALL CHKSTM		;Check start-up message
+	LD (FREESP),HL		;Store new bottom of free space
+	RET
+;
+;
+;
+;CHKTOAM checks whether HL has reached
+;or exceeded top of available memory.
+;On exit, C if so, else NC.
+;Affects only AF.
+;
+CHKTOAM:
+	PUSH DE
+	PUSH HL
+	EX DE,HL
+	LD HL,(TOAM)
+	DEC HL
+	CALL CHKDEHL
+	POP HL
+	POP DE
+	RET
+;
+;
+;
+;CHKSTM checks whether start-up message has been
+;overwritten by adjusting bottom of free space.
+;On entry, HL -> new bottom of free space.
+;Preserves BC,DE,HL.
+;
+CHKSTM:
+	PUSH BC
+	PUSH DE
+	PUSH HL
+	LD B,H
+	LD C,L			;BC -> bottom of free space
+	LD HL,(STMSG)		;HL -> start-up message
+	EX DE,HL
+	LD HL,(FREESP)
+	CALL CHKDEHL		;C if HL < DE, Z if HL = DE
+	JR C,CHKST2		;Jump if (FREESP) < (STMSG)
+	JR Z,CHKST3		;Jump if (FREESP) = (STMSG)
+;
+;Here if (FREESP) > (STMSG).
+;Restore registers and return.
+;
+CHKST1:
+	POP HL
+	POP DE
+	POP BC
+	RET
+;
+;Here if (FREESP) < (STMSG)
+;DE = (STMSG), HL = (FREESP).
+;
+CHKST2:
+	LD H,B
+	LD L,C			;HL -> bottom of free space
+	CALL CHKDEHL		;C if HL < DE, Z if HL = DE
+	JR Z,CHKST1		;Jump if free space = (STMSG)
+	JR C,CHKST1		;Jump if free space < (STMSG)
+;
+;Here if (STMSG) is greater than or equal to old bottom
+;of free space, but less than new bottom of free space.
+;
+CHKST3:
+	LD H,B
+	LD L,C			;HL -> new bottom of free space
+	LD (STMSG),HL		;Store new address of start-up message
+	LD (HL),0		;Indicates no start-up message?
+	JR CHKST1		;Restore registers and return
+;
+;
+;
+;CHKDEHL checks whether HL < DE.
+;On exit, C if HL < DE, Z if HL = DE, NC if HL > DE.
+;Affects only AF.
+;
+CHKDEHL:
+	LD A,H
+	CP D
+	RET C
+	RET NZ
+	LD A,L
+	CP E
+	RET
+;
+;
+;
+;PRSTAT prints the disc configuration status.
+;
+PRSTAT:
+	LD A,(BOOTDR)		;Get cold-boot drive
+	ADD A,'A'
+	LD (SMESS2),A		;Store boot drive
+	LD (SMESS3),A		;Store drive A
+	LD DE,SMESS1
+	LD C,9
+	CALL BDOS		;Print first status message
+;
+;Now print bottom of free space.
+;
+	LD HL,(FREESP)		;HL -> bottom of free space
+	LD C,H	
+	CALL PRHEX		;Print high byte
+	LD C,L
+	CALL PRHEX		;Print low byte
+	LD DE,SMESS4
+	LD C,9
+	CALL BDOS		;Print second status message
+;
+;Now print top of available memory.
+;
+	LD HL,(TOAM)		;HL -> top of available memory
+	LD C,H
+	CALL PRHEX		;Print high nibble
+	LD C,L
+	CALL PRHEX		;Print low nibble
+	LD E,LF
+	LD C,2
+	CALL BDOS		;Print line-feed
+;
+;Now print disc type for each configured drives.
+;
+	LD C,1			;Start with drive B
+PRST1:
+	CALL SELDPH		;Select drive (preserves BC)
+	LD A,H
+	OR L
+	JR Z,PRST5		;Jump if drive not configured
+;
+;Print disc type for drive given by C.
+;
+	PUSH BC
+	PUSH HL
+;
+	LD DE,SMESS6
+	LD A,C
+	ADD A,'A'
+	LD (SMESS7),A		;Store drive letter
+	LD C,9
+	CALL BDOS		;Print disc type
+;
+	LD A,0FFH
+	LD (CFGBYT),A
+	CALL XCONFIG		;Find configuration byte for drive
+	LD A,(CFGBYT)		;A = configuration byte
+	LD C,A			;C = configuration byte
+	PUSH BC
+	CALL PRHEX		;Print disc type given by C
+	LD C,9
+	LD DE,SMESS5
+	CALL BDOS		;Print separator
+	POP DE
+;
+;Here, E = configuration byte for drive.
+;Print description of disc type.
+;
+	LD HL,DSCDES		;HL -> disc type descriptions
+PRST2:
+	LD A,(HL)
+	INC HL			;HL -> description
+	CP 0FFH
+	JR Z,PRST4		;Jump if at end of table
+	CP E
+	JR Z,PRST3		;Jump if matching disc type found
+;
+;Here if matching disc type not found.
+;Move pointer along to next disc type byte.
+;
+	LD C,0
+	LD A,'$'
+	CPIR			;HL -> next description
+	JR PRST2		;Try again
+;
+;Here if matching disc type found.
+;HL -> disc description.
+;
+PRST3:
+	EX DE,HL		;DE -> description
+	LD C,9
+	CALL BDOS		;Print description
+PRST4:
+	POP HL
+	POP BC
+;
+;Here, C = drive number.
+;Test whether any more drive types to print.
+;
+PRST5:
+	INC C			;C = 9 if finished
+	LD A,C
+	CP 9
+	JR NZ,PRST1		;Jump if not finished
+	LD C,9
+	LD DE,SMESS8
+	JP BDOS			;Print CR/LF and return
+;
+;
+;
+;PRHEX prints the value in C as two ASCII hexadecimal digits.
+;Preserves HL.
+;
+PRHEX:
+	PUSH HL
+	LD A,C			;A = hex byte to print
+	PUSH AF
+	AND 0F0H		;Keep only high nibble
+	RRCA
+	RRCA
+	RRCA
+	RRCA			;A = 00H-0FH	
+	ADD A,'0'
+	CP '9'+1
+	JR C,PRHEX1		;Jump if A = '0'-'9'
+	ADD A,7			;A = 'A'-'F'
+PRHEX1:
+	LD H,A			;H = first ASCII character to print
+	POP AF			;A = hex byte to print
+	AND 0FH			;Keep only low nibble
+	ADD A,'0'
+	CP '9'+1
+	JR C,PRHEX2		;Jump if A = '0'-'9'
+	ADD A,7			;A = 'A'-'F'
+PRHEX2:
+	LD L,A			;L = second ASCII character to print
+	LD E,H
+	LD C,2
+	PUSH HL
+	CALL BDOS		;Print high nibble
+	POP HL
+	LD E,L
+	LD C,2
+	CALL BDOS		;Print low nibble
+	POP HL
+	RET
+;
+;
+;
+;The following are the error messages.
+;
+EMESS1:
+	DB 'ERROR AT$'
+EMESS2:
+	DB '^'
+	DB CR,LF
+	DB '$'
+
+EMES2A:	DB 'BAD DRIVE LETTER',CR,LF,'$'
+EMES2B:	DB 'BAD DRIVE TYPE',CR,LF,'$'
+EMES2C:	DB 'DRIVE SELECTED BUT NOT CONFIGURED',CR,LF,'$'
+EMES2D:	DB 'DRIVE NOT CONFIGURED',CR,LF,'$'
+EMES2E:	DB 'INCOMPATIBLE DRIVE TYPE CHANGE',CR,LF,'$'
+EMES2F:	DB 'NON-RECONFIGURABLE DRIVE TYPE',CR,LF,'$'
+EMES2G:	DB 'CONFIGURATION FAILURE',CR,LF,'$'
+EMES2H:	DB 'OUT OF SPACE',CR,LF,'$'
+EMES2I:	DB 'CONFIGURATION FAILURE (NON-SELECTED DRIVE)',CR,LF,'$'
+EMES2J:	DB 'OUT OF SPACE (NON-SELECTED DRIVE)',CR,LF,'$'
+
+EMESS3:	DB 0EH
+	DB 'CONFIGURATION ABORTED!'
+	DB 0FH
+	DB BEL,CR,LF
+	DB '$'
+;
+EMESS4:
+	DB CR,LF
+	DB 'PAUSING - Type CR when ready for warm boot$'
+;
+;
+;
+;The following are the status messages.
+;
+SMESS1:
+	DB CR,LF
+	DB 17
+	DB 'Disc Configuration Status'
+	DB 16H
+	DB CR,LF,LF
+	DB 'System booted from ...... '
+SMESS2:
+	DB 'X:'
+	DB CR,LF
+	DB 'Drive A: mapped to ...... '
+SMESS3:
+	DB 'X:'
+	DB CR,LF
+	DB 'Free space pointer ...... $'
+;
+;
+SMESS4:
+	DB CR,LF
+	DB 'Top of available RAM .... $'
+;
+;
+SMESS5:
+	DB ' - $'
+;
+;
+SMESS6:
+	DB CR,LF
+;	DB 'Drive '	; to make lines shorter
+			; for 56 column mode - AK
+SMESS7:
+	DB 'X: is type $'
+;
+;
+SMESS8:
+	DB CR,LF
+	DB '$'
+;
+;
+;
+;RECFGT gives drive types that can be re-configured.
+;First entry in table is for disc types 0XH,
+;the second entry in table is for disc types 1XH, etc.
+;Table entry is zero if drive can be re-configured,
+;non-zero if drive cannot be re-configured.
+;
+;N.B.	Only first six entries currently used.
+;
+RECFGT:
+	DB 0			;3.5" or 5" drives can be re-configured
+	DB 0			;8" drives can be re-configured
+	DB 1			;Winchesters cannot be re-configured
+	DB 1			;Winchesters cannot be re-configured
+	DB 1			;Silicon discs cannot be re-configured
+	DB 1			;RAM discs cannot be re-configured
+;
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+	DB 1
+;
+;
+;
+;DSCDES is a table of disc type descriptions.
+;
+;N.B.	Descriptions can be varying lengths.
+;
+DSCDES:
+;
+;5" floppy disc descriptions.
+;
+	DB 00H
+	DB '80Kb  Floppy disc S/S S/D 40 track$'
+	DB 01H
+	DB '160Kb Floppy disc D/S S/D 40 track$'
+	DB 02H
+	DB '160Kb Floppy disc S/S D/D 40 track$'
+	DB 03H
+	DB '320Kb Floppy disc D/S D/D 40 track$'
+	DB 04H
+	DB '160Kb Floppy disc S/S S/D 80 track$'
+	DB 05H
+	DB '320Kb Floppy disc D/S S/D 80 track$'
+	DB 06H
+	DB '320Kb Floppy disc S/S D/D 80 track$'
+	DB 07H
+	DB '640Kb Floppy disc D/S D/D 80 track$'
+;
+;8" Floppy disc descriptions.
+;
+	DB 10H
+	DB '250Kb Floppy disc S/S S/D 77 track$'
+	DB 11H
+	DB '500Kb Floppy disc D/S S/D 77 track$'
+	DB 12H
+	DB '500Kb Floppy disc S/S D/D 77 track$'
+	DB 13H
+	DB '1Mb   Floppy disc D/S D/D 77 track$'
+;
+;SD Card descriptions, for REMEMOTECH
+;
+	DB 18H
+	DB '8Mb   SD/CF Card, partition 0$'
+	DB 19H
+	DB '8Mb   SD/CF Card, partition 1$'
+	DB 1AH
+	DB '8Mb   SD/CF Card, partition 2$'
+	DB 1BH
+	DB '8Mb   SD/CF Card, partition 3$'
+	DB 1CH
+	DB '8Mb   SD/CF Card, partition 4$'
+	DB 1DH
+	DB '8Mb   SD/CF Card, partition 5$'
+	DB 1EH
+	DB '8Mb   SD/CF Card, partition 6$'
+	DB 1FH
+	DB '8Mb   SD/CF Card, partition 7$'
+;
+;5" Winchester disc descriptions.
+;
+	DB 20H
+	DB '5Mb   Winchester disc ST506$'
+	DB 21H
+	DB '10Mb  Winchester disc ST412$'
+	DB 22H
+	DB '5Mb   Winchester disc D-507$'
+	DB 23H
+	DB '10Mb  Winchester disc D-514$'
+	DB 24H
+	DB '15Mb  Winchester disc D-519$'
+	DB 25H
+	DB '20Mb  Winchester disc D-526$'
+;
+;8" Winchester disc descriptions.
+;
+	DB 30H
+	DB '4Mb   Winchester disc SA1002$'
+	DB 31H
+	DB '8Mb   Winchester disc SA1004$'
+	DB 32H
+	DB '8Mb   Winchester disc Q2010$'
+	DB 33H
+	DB '16Mb  Winchester disc Q2020$'
+	DB 34H
+	DB '24Mb  Winchester disc Q2030$'
+	DB 35H
+	DB '32Mb  Winchester disc Q2040$'
+;
+;Silicon disc descriptions.
+;
+	DB 40H
+	DB '256Kb Silicon disc$'
+	DB 41H
+	DB '512Kb Silicon disc$'
+	DB 42H
+	DB '768Kb Silicon disc$'
+	DB 43H
+	DB '1Mb   Silicon disc$'
+	DB 44H
+	DB '1.3Mb Silicon disc$'
+	DB 45H
+	DB '1.5Mb Silicon disc$'
+	DB 46H
+	DB '1.8Mb Silicon disc$'
+	DB 47H
+	DB '2Mb   Silicon disc$'
+	DB 48H
+	DB '2.5Mb Silicon disc$'
+	DB 49H
+	DB '3Mb   Silicon disc$'
+	DB 4AH
+	DB '3.5Mb Silicon disc$'
+	DB 4BH
+	DB '4Mb   Silicon disc$'
+	DB 4CH
+	DB '5Mb   Silicon disc$'
+	DB 4DH
+	DB '6Mb   Silicon disc$'
+	DB 4EH
+	DB '7Mb   Silicon disc$'
+	DB 4FH
+	DB '8Mb   Silicon disc$'
+;
+;RAM disc descriptions.
+;
+	DB 50H
+	DB '256Kb RAM disc$'
+	DB 51H
+;
+IFT	ITALY
+;
+	DB '480kb RAM disc$'
+;
+ELSE
+;
+	DB '512Kb RAM disc$'
+;
+ENDIF
+	DB 52H
+	DB '320Kb RAM disc$'
+;
+	DB 0FFH			;Terminates descriptions
+;
+;
+;
+;ENTSP holds the entry stack pointer.
+;
+ENTSP::
+	DS 2
+;
+;
+;
+;ENTDR holds value of default drive on entry.
+;
+ENTDR:
+	DS 1
+;
+;
+;
+;COMM holds the address of the command tail during parsing.
+;
+COMM:
+	DS 2
+;
+;
+;
+;DTYPE holds the drive configuration type
+;read from the command line tail.
+;
+DTYPE:
+	DS 1
+;
+;
+;
+;PAUSE holds a non-zero value if must pause before re-booting.
+;
+PAUSE:
+	DB 0
+;
+;
+;
+;DPHST holds address of disc parameter header.
+;
+DPHST:
+	DS 2
+;
+;
+;
+;DPHSTA holds address of the disc parameter header for drive A.
+;
+DPHSTA:
+	DS 2
+;
+;
+;
+;DPHBUF is the disc parameter header buffer.
+;
+DPHBUF:
+	DS 2			;Address of sector translation table
+	DS 2			;Scratchpad
+	DS 2			;Scratchpad
+	DS 2			;Scratchpad
+	DS 2			;Address of directory buffer
+	DS 2			;Address of DPB
+	DS 2			;Address of check vector
+	DS 2			;Address of allocation vector
+;
+;
+;
+;STACK is the program stack.
+;
+	DS 64
+STACK:
+;
+;
+;
+END

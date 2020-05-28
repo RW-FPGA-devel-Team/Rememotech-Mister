@@ -1,0 +1,433 @@
+TITLE	REBOOT	REMEMOTECH on-chip bootstrap
+
+; This code requires somewhere between 512 and 1024 bytes.
+; Therefore there is 1024 bytes of on-chip memory (which is scarce).
+; Clear the 80 column screen (as the power has not necessarily been removed)
+; Note: SW3 is the reset key
+; If SW2 is pressed, copy ROM image and RAM Disc image from SD card to Flash
+; If SW1 is pressed, copy Flash to ROM area of SRAM
+; If SW0 is pressed, copy Flash to RAM Disc area
+; Jump to REMON code in top half of SRAM page 8, if signiture found
+
+.Z80
+ASEG
+
+	ORG	00100H
+
+	INCLUDE	PORTS.INC
+
+SDDATA	EQU	0FC00H
+SDREGV	EQU	0FE00H
+SDLBA	EQU	0FE20H
+STACK	EQU	0FF00H
+
+.PHASE	0
+
+	DI
+	LD	SP,STACK
+	CALL	MONINI
+	IN	A,(P_KEY)
+	PUSH	AF
+	BIT	2,A
+	CALL	Z,SF
+	POP	AF
+	PUSH	AF
+	BIT	1,A
+	CALL	Z,FROM
+	POP	AF
+	BIT	0,A
+	CALL	Z,FRAM
+
+; switch in SRAM page 8
+	LD	A,8
+	OUT	(P_PAGE1),A
+
+; look for REMON signature
+	LD	HL,06000H
+	LD	DE,MONSIG
+	LD	B,8
+CHECK:	LD	A,(DE)
+	CP	(HL)
+	JR	NZ,CHECK2
+	INC	DE
+	INC	HL
+	DJNZ	CHECK
+
+; signiture found, jump to it
+	XOR	A
+	OUT	(P_HEX10),A
+	OUT	(P_HEX32),A
+
+	JP	06008H
+
+; signiture not found, don't jump to it
+CHECK2:	LD	A,0FFH			; error FF => REMON not present
+	JP	FATAL
+
+MONSIG:	DB	'REMON512'
+
+; --- Initialise the 80 column card
+
+MONINI:
+
+; set base address to 000
+	LD	A,12
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+	LD	A,13
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; set cursor position to 000
+	LD	A,14
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+	LD	A,15
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; hide the cursor
+	LD	A,10
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; set special register to 24 line mode
+	LD	A,31
+	OUT	(P_CRTR),A
+	XOR	A
+	OUT	(P_CRTD),A
+
+; wipe 4KB of character and attribute memory
+	LD	A,' '
+	OUT	(P_ASCD),A
+	LD	A,007Q		; white on black
+	OUT	(P_ATRD),A
+	LD	HL,0E000H	; E = write|ascm|atrm, 000 = addr
+	LD	BC,01000H
+MONIN2:	LD	A,H
+	OUT	(P_ADRHI),A	; update high part of address
+	LD	A,L
+	OUT	(P_ADRLO),A	; causes ascd and atrd to be written
+	INC	HL
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,MONIN2
+	RET
+
+; --- Copy SD card to Flash
+
+SF:	LD	A,020H
+	OUT	(P_HEX32),A	; 20xx => copying SD card to Flash
+	CALL	SDINIT		; initialise SD card
+	LD	A,00AH		; send_cid (not using the result as yet)
+	CALL	SDREG
+	LD	A,009H		; send_csd (not using the result as yet)
+	CALL	SDREG
+	LD	HL,128
+	LD	(SDLBA),HL
+	LD	HL,0
+	LD	(SDLBA+2),HL	; 64KB block 1 corresponds to 512x128
+	LD	A,1		; starting from 64KB block 1
+				; block 0 is special, and we don't use it
+	LD	B,7		; 7x64KB blocks
+SFB64:	PUSH	BC
+
+; erase 64KB flash block
+	PUSH	AF
+	SLA	A
+	SLA	A		; A=flash page
+	OUT	(P_PAGE2),A
+	LD	A,0F0H		; reset flash block state machine
+	LD	(08AAAH),A
+	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,080H
+	LD	(08AAAH),A
+	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,030H		; erase block
+	LD	(08000H),A	; flash block implied from memory map
+	LD	B,255
+SFB64D:	DJNZ	SFB64D		; erase delay
+SFB64W:	LD	A,(08000H)
+	BIT	7,A
+	JR	Z,SFB64W	; erase wait done
+	POP	AF
+
+; read and program 64KB flash block
+	PUSH	AF
+	LD	B,4		; 64KB=4x16KB
+	LD	C,A
+	SLA	C
+	SLA	C		; C=16KB flash page
+; do a 16KB flash page
+SFP16:	PUSH	BC
+	LD	DE,08000H	; where flash page appears in memory
+	LD	A,C
+	OUT	(P_HEX10),A	; xxNN => doing 16KB flash page NN
+	OUT	(P_PAGE2),A
+	LD	B,32		; 16KB=32*512
+; do a 512 byte SD block
+SFB512:	PUSH	BC
+	LD	HL,SDDATA
+	CALL	SDREAD
+	LD	BC,512
+	LD	HL,SDDATA
+; program a byte
+SFB1:	LD	A,0AAH
+	LD	(08AAAH),A
+	LD	A,055H
+	LD	(08555H),A
+	LD	A,0A0H		; write byte
+	LD	(08AAAH),A
+	LD	A,(HL)
+	LD	(DE),A
+SFB1W:	LD	A,(DE)
+	CP	(HL)
+	JR	NZ,SFB1W
+	INC	HL
+	INC	DE
+; done byte
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,SFB1
+; done 512 byte SD block
+	LD	HL,(SDLBA)
+	INC	HL
+	LD	(SDLBA),HL
+	POP	BC
+	DJNZ	SFB512
+; done 16KB flash page
+	POP	BC
+	INC	C
+	DJNZ	SFP16
+
+; done 64KB flash block
+	POP	AF
+	INC	A
+	POP	BC
+	DEC	B
+	JP	NZ,SFB64	; too far away to use DJNZ
+
+; stop using SD card
+	JP	SDTERM	
+
+; --- Copy from Flash to ROM
+
+FROM:	LD	A,010H		; 10xx => copying Flash to ROM
+	OUT	(P_HEX32),A
+	LD	B,8		; 8x16KB to copy
+	LD	A,4		; starting from page 4
+	JR	FRAM2
+
+; --- Copy from Flash to RAM Disc
+
+FRAM:	XOR	A		; 00xx => copying Flash to RAM Disc
+	OUT	(P_HEX32),A
+	LD	B,20		; 20x16KB to copy
+	LD	A,12		; starting from page 12
+FRAM2:	PUSH	BC
+	OUT	(P_HEX10),A	; xxNN => copying 16KB page NN
+	OUT	(P_PAGE2),A
+	OUT	(P_PAGE1),A
+	LD	HL,08000H
+	LD	DE,04000H
+	LD	BC,04000H
+	LDIR
+	POP	BC
+	INC	A
+	DJNZ	FRAM2
+	RET
+
+; --- Initialise SD card
+
+SDINIT:
+
+; do "warmup"
+	LD	A,0+62		; disable SD card at 0.4MHz
+	OUT	(P_SDCTL),A
+	LD	B,10		; 10*8 pulses (>74) for a "warmup"
+SDINI1:	LD	A,0FFH
+	OUT	(P_SDDAT),A
+SDINI2:	IN	A,(P_SDCTL)
+	BIT	7,A
+	JR	Z,SDINI2
+	DJNZ	SDINI1
+
+; enable card
+	LD	A,80H+62	; enable SD card at 0.4MHz
+	OUT	(P_SDCTL),A
+
+; go idle
+	LD	B,255
+SDINI3:	PUSH	BC
+	XOR	A		; go_idle
+	CALL	SDCMD0
+	POP	BC
+	CP	001H
+	JR	Z,SDINI4
+	DJNZ	SDINI3
+	LD	A,001H		; error 01 => error accessing SD card
+	JP	FATAL
+SDINI4:
+
+; initialise the card
+	LD	BC,1000		; can take a while
+SDINI5:	PUSH	BC
+	LD	A,037H		; app_cmd
+	CALL	SDCMD0
+	LD	A,029H		; send_op_cond, ie: initialise card
+	CALL	SDCMD0
+	POP	BC
+	AND	A
+	JR	Z,SDINI6
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,SDINI5
+	LD	A,002H		; error 02 => error initialising SD card
+	JP	FATAL
+SDINI6:
+
+; switch to full speed
+	LD	A,080H		; enable SD card at 25MHz
+	OUT	(P_SDCTL),A
+	RET
+
+; --- Terminate access to SD card
+
+SDTERM:	XOR	A
+	OUT	(P_SDCTL),A	; disable SD card
+	RET
+
+; --- Read SD register
+;   before A=readcommand
+;   after A=0 and SDREGV contains register, or A!=0
+
+SDREG:	LD	B,10
+SDREG1:	PUSH	BC
+	CALL	SDCMD0
+	POP	BC
+	AND	A
+	JR	Z,SDREG3
+	DEC	B
+	JR	Z,SDREG9
+	CALL	SPICMF
+	JR	SDREG1
+SDREG3:	LD	B,10
+	CALL	SPICMF
+	CP	0FEH
+	JR	Z,SDREG4
+	DJNZ	SDREG3
+	JR	SDREG9
+SDREG4:	LD	B,16
+	LD	HL,SDREGV
+SDREG5:	CALL	SPICMF
+	LD	(HL),A
+	INC	HL
+	DJNZ	SDREG5
+	CALL	SPICMF
+	CALL	SPICMF
+	XOR	A
+	RET
+SDREG9:	LD	A,0FFH
+	RET
+
+; --- Read block from SD card
+;   before SDLBA is 32 bit block 512 byte block number, HL is buffer
+
+SDREAD:	PUSH	DE
+	PUSH	HL
+; compute byte offset
+	LD	DE,(SDLBA)
+	LD	HL,(SDLBA+2)
+	LD	H,L
+	LD	L,D
+	LD	D,E
+	LD	E,0
+	SLA	D
+	RL	L
+	RL	H		; HLDE <<= 9
+; send command
+	LD	A,011H		; read_single_block
+	CALL	SDCMD
+; await response
+	LD	B,255
+SDREA2:	CALL	SPICMF		; send ff
+	CP	0FEH		; means data will follow
+	JR	Z,SDREA3
+	DJNZ	SDREA2
+	LD	A,003H		; error 03 => failed data read
+	JP	FATAL
+; read the bytes
+SDREA3:	LD	BC,P_SDDAF	; B=0, C=port to read data and send next ff
+	POP	HL
+	PUSH	HL
+	IN	A,(C)		; send first ff
+	INIR			; first 256 bytes
+	INIR			; next 256 bytes
+	IN	A,(C)		; get CRC LSB, send ff
+	IN	A,(P_SDDAT)	; get CRC MSB
+; done
+	POP	HL
+	POP	DE
+	RET
+
+; --- SD command
+;   before A=command, HLDE=params
+;   after A=status
+
+SDCMD0:	LD	HL,0
+	LD	DE,0
+SDCMD:	PUSH	AF
+	CALL	SPICMF		; dummy byte
+	POP	AF
+	OR	040H
+	CALL	SPICMD
+	LD	A,H
+	CALL	SPICMD
+	LD	A,L
+	CALL	SPICMD
+	LD	A,D
+	CALL	SPICMD
+	LD	A,E
+	CALL	SPICMD
+	LD	A,095H		; checksum for go_idle
+	CALL	SPICMD
+	CALL	SPICMF		; dummy byte, to give card a chance to process
+	LD	B,10
+SDCMDR:	CALL	SPICMF		; dummy byte, fetch the result
+	BIT	7,A
+	RET	Z
+	DJNZ	SDCMDR
+	RET
+
+; --- SPI command
+
+SPICMF:	LD	A,0FFH
+SPICMD:	OUT	(P_SDDAT),A
+SPICM2:	IN	A,(P_SDCTL)
+	BIT	7,A
+	JR	Z,SPICM2
+	IN	A,(P_SDDAT)
+	RET
+
+; --- Fatal error
+
+FATAL:	OUT	(P_HEX10),A	; xxNN => error code NN
+	LD	A,0EEH
+	OUT	(P_HEX32),A	; EExx => error
+FATAL2:	JR	FATAL2
+
+END

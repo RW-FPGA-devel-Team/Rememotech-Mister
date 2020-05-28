@@ -1,0 +1,304 @@
+<session jtag_chain="USB-Blaster [3-2]" jtag_device="@1: EP2C(15|20) (0x020B30DD)" sof_file="">
+  <display_tree gui_logging_enabled="0">
+    <display_branch instance="auto_signaltap_0" log="USE_GLOBAL_TEMP" signal_set="USE_GLOBAL_TEMP" trigger="USE_GLOBAL_TEMP"/>
+  </display_tree>
+  <instance entity_name="sld_signaltap" is_auto_node="yes" is_expanded="true" name="auto_signaltap_0" source_file="sld_signaltap.vhd">
+    <node_ip_info instance_id="0" mfg_id="110" node_id="0" version="6"/>
+    <signal_set global_temp="1" is_expanded="true" name="signal_set: 2012/03/24 22:25:33  #0">
+      <clock name="CLOCK_50" polarity="posedge" tap_mode="probeonly"/>
+      <config ram_type="M4K" reserved_data_nodes="0" reserved_storage_qualifier_nodes="0" reserved_trigger_nodes="0" sample_depth="256" trigger_in_enable="no" trigger_out_enable="no"/>
+      <top_entity/>
+      <signal_vec>
+        <trigger_input_vec>
+          <wire name="T80se:U_Z80|DI_Reg[0]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[1]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[2]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[3]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[4]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[5]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[6]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[7]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|IORQ_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|M1_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="vdp:U_VDP|interrupt" tap_mode="classic" type="combinatorial"/>
+          <wire name="T80se:U_Z80|T80:u0|A[0]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[10]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[11]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[12]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[13]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[14]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[15]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[1]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[2]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[3]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[4]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[5]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[6]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[7]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[8]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[9]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|interrupt~0" tap_mode="probeonly" type="combinatorial"/>
+          <wire name="ctc:U_CTC|pending[0]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[4]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[5]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[6]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[7]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc_re_vector" tap_mode="probeonly" type="combinatorial"/>
+        </trigger_input_vec>
+        <data_input_vec>
+          <wire name="T80se:U_Z80|DI_Reg[0]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[1]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[2]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[3]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[4]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[5]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[6]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[7]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|IORQ_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|M1_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="vdp:U_VDP|interrupt" tap_mode="classic" type="combinatorial"/>
+          <wire name="T80se:U_Z80|T80:u0|A[0]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[10]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[11]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[12]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[13]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[14]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[15]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[1]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[2]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[3]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[4]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[5]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[6]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[7]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[8]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[9]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|interrupt~0" tap_mode="probeonly" type="combinatorial"/>
+          <wire name="ctc:U_CTC|pending[0]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[4]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[5]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[6]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[7]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc_re_vector" tap_mode="probeonly" type="combinatorial"/>
+        </data_input_vec>
+        <storage_qualifier_input_vec>
+          <wire name="T80se:U_Z80|DI_Reg[0]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[1]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[2]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[3]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[4]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[5]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[6]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|DI_Reg[7]" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|IORQ_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|M1_n~reg0" tap_mode="classic" type="register"/>
+          <wire name="vdp:U_VDP|interrupt" tap_mode="classic" type="combinatorial"/>
+          <wire name="T80se:U_Z80|T80:u0|A[0]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[10]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[11]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[12]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[13]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[14]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[15]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[1]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[2]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[3]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[4]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[5]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[6]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[7]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[8]" tap_mode="probeonly" type="register"/>
+          <wire name="T80se:U_Z80|T80:u0|A[9]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|interrupt~0" tap_mode="probeonly" type="combinatorial"/>
+          <wire name="ctc:U_CTC|pending[0]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|pending[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[1]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[2]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[3]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[4]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[5]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[6]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc:U_CTC|vector_int[7]" tap_mode="probeonly" type="register"/>
+          <wire name="ctc_re_vector" tap_mode="probeonly" type="combinatorial"/>
+        </storage_qualifier_input_vec>
+      </signal_vec>
+      <presentation>
+        <data_view>
+          <bus is_signal_inverted="no" link="all" name="T80se:U_Z80|T80:u0|A" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[15]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[14]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[13]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[12]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[11]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[10]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[9]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[8]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[7]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[6]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[5]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[4]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[3]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[2]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[1]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[0]"/>
+          </bus>
+          <bus is_signal_inverted="no" link="all" name="T80se:U_Z80|DI_Reg" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[7]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[6]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[5]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[4]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[3]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[2]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[1]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[0]"/>
+          </bus>
+          <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|M1_n~reg0"/>
+          <net is_signal_inverted="no" name="T80se:U_Z80|IORQ_n~reg0"/>
+          <net is_signal_inverted="no" name="ctc_re_vector"/>
+          <net is_signal_inverted="no" name="ctc:U_CTC|interrupt~0"/>
+          <bus is_signal_inverted="no" link="all" name="ctc:U_CTC|pending" order="lsb_to_msb" radix="hex" state="expand" type="register">
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[0]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[1]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[2]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[3]"/>
+          </bus>
+          <bus is_signal_inverted="no" link="all" name="ctc:U_CTC|vector_int" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[7]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[6]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[5]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[4]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[3]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[2]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[1]"/>
+          </bus>
+          <net is_signal_inverted="no" name="vdp:U_VDP|interrupt"/>
+        </data_view>
+        <setup_view>
+          <bus is_signal_inverted="no" link="all" name="T80se:U_Z80|T80:u0|A" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[15]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[14]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[13]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[12]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[11]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[10]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[9]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[8]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[7]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[6]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[5]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[4]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[3]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[2]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[1]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|A[0]"/>
+          </bus>
+          <bus is_signal_inverted="no" link="all" name="T80se:U_Z80|DI_Reg" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[7]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[6]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[5]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[4]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[3]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[2]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[1]"/>
+            <net is_signal_inverted="no" name="T80se:U_Z80|DI_Reg[0]"/>
+          </bus>
+          <net is_signal_inverted="no" name="T80se:U_Z80|T80:u0|M1_n~reg0"/>
+          <net is_signal_inverted="no" name="T80se:U_Z80|IORQ_n~reg0"/>
+          <net is_signal_inverted="no" name="ctc_re_vector"/>
+          <net is_signal_inverted="no" name="ctc:U_CTC|interrupt~0"/>
+          <bus is_signal_inverted="no" link="all" name="ctc:U_CTC|pending" order="lsb_to_msb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[0]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[1]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[2]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|pending[3]"/>
+          </bus>
+          <bus is_signal_inverted="no" link="all" name="ctc:U_CTC|vector_int" order="msb_to_lsb" radix="hex" state="collapse" type="register">
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[7]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[6]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[5]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[4]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[3]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[2]"/>
+            <net is_signal_inverted="no" name="ctc:U_CTC|vector_int[1]"/>
+          </bus>
+          <net is_signal_inverted="no" name="vdp:U_VDP|interrupt"/>
+        </setup_view>
+      </presentation>
+      <trigger CRC="41101DCB" attribute_mem_mode="false" gap_record="true" global_temp="1" name="trigger: 2012/03/25 16:48:54  #0" position="pre" power_up_trigger_mode="false" record_data_gap="true" segment_size="64" storage_mode="off" storage_qualifier_disabled="no" storage_qualifier_port_is_pin="false" storage_qualifier_port_name="auto_stp_external_storage_qualifier" storage_qualifier_port_tap_mode="classic" trigger_in="dont_care" trigger_out="active high" trigger_type="circular">
+        <power_up_trigger position="pre" storage_qualifier_disabled="no" trigger_in="dont_care" trigger_out="active high"/>
+        <events use_custom_flow_control="no">
+          <level enabled="yes" name="condition1" type="basic">
+            <power_up enabled="yes">
+            </power_up>
+            <op_node/>
+          </level>
+        </events>
+        <storage_qualifier_events>
+          <transitional>0000000000000000000000000000000000000000
+            <pwr_up_transitional>0000000000000000000000000000000000000000</pwr_up_transitional>
+          </transitional>
+          <storage_qualifier_level type="basic">
+            <power_up>
+            </power_up>
+            <op_node/>
+          </storage_qualifier_level>
+          <storage_qualifier_level type="basic">
+            <power_up>
+            </power_up>
+            <op_node/>
+          </storage_qualifier_level>
+          <storage_qualifier_level type="basic">
+            <power_up>
+            </power_up>
+            <op_node/>
+          </storage_qualifier_level>
+        </storage_qualifier_events>
+        <log>
+          <data global_temp="1" name="log: 2012/03/25 17:06:42  #0" power_up_mode="false" sample_depth="255" trigger_position="0">011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001011001111111101100010101001000000110000101100111111110110001010100100000011000010110011111111011000101010010000001100001010000001111101100010101001000000110000101000000111110110001010100100000011000010100000011111011000101010010000001100001010000001111101100010101001000000110000101000000111110110001010100100000011000010100000011111011000101010010000001100001010000001111101100010101001000000110000101000000111110110001010100100000011000010100000011111011000101010010000001100001010000001111101100010101001000000110000101000000111110110001010100100000011000010100000011111011000101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001010000001010101100110101001000000110000101000000101010110011010100100000011000010100000010101011001101010010000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111000000001100010000000110000100000100111100000000110001000000011000010000010011110000000011000100000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001000001001111101100110101001000000110000100000100111110110011010100100000011000010000010011111011001101010010000001100001110000001111101100110101001000000110000111000000111110110011010100100000011000011100000011111011001101010010000001100001110000001111101100110101001000000110000111000000111110110011010100100000011000011100000011111011001101010010000001100001110000001111101100110101001000000110000111000000111110110011010100100000011000011100000011111011001101010010000001100001110000001111101100110101001000000110000111000000111110110011010100100000011000011100000011111011001101010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001110000001110101100001101001000000110000111000000111010110000110100100000011000011100000011101011000011010010000001100001101000001110101100001101001000000110000110100000111010110000110100100000011000011010000011101011000011010010000001100001101000001110101100001101001000000110000110100000111010110000110100100000011000011010000011101011000011010010000001100001101000001110101100001101001000000110000110100000111010110000110100100000011000011010000011101011000011010010000001100001101000001110101100001101001000000110000110100000111010110000110100100000011000011010000011101011000011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001101000001011101100101101001000000110000110100000101110110010110100100000011000011010000010111011001011010010000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100010011100000001011000100000001100001110001001110000000101100010000000110000111000100111000000010110001000000011000011100111010101011000101010010000001100001110011101010101100010101001000000110000111001110101010110001010100100000011000011100111010101011000101010010000001100001110011101010101100010101001000000110000111001110101010110001010100100000011000011100111010101011000101010010000001100001110011101010101100010101001000000110000111001110101010110001010100100000011000011100111010101011000101010010000001100001110011101010101100010101001000000110000111001110101010110001010100100000011000011100111010101011000101010010000001100001110011101010101100010101001000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110011111100000000011000100000001100001011001111110000000001100010000000110000101100111111000000000110001000000011000010110000111100000000011000100000001100001</data>
+          <extradata>T11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111</extradata>
+        </log>
+      </trigger>
+    </signal_set>
+    <position_info>
+      <single attribute="active tab" value="0"/>
+      <single attribute="data horizontal scroll position" value="0"/>
+      <single attribute="data vertical scroll position" value="0"/>
+      <single attribute="setup horizontal scroll position" value="0"/>
+      <single attribute="setup vertical scroll position" value="0"/>
+      <single attribute="zoom level denominator" value="1"/>
+      <single attribute="zoom level numerator" value="1"/>
+      <single attribute="zoom offset denominator" value="1"/>
+      <single attribute="zoom offset numerator" value="130817"/>
+      <multi attribute="timebars" size="2" value="96,178"/>
+    </position_info>
+  </instance>
+  <mnemonics/>
+  <static_plugin_mnemonics/>
+  <global_info>
+    <single attribute="active instance" value="0"/>
+    <single attribute="config widget visible" value="1"/>
+    <single attribute="data log widget visible" value="1"/>
+    <single attribute="hierarchy widget height" value="106"/>
+    <single attribute="hierarchy widget visible" value="1"/>
+    <single attribute="instance widget visible" value="1"/>
+    <single attribute="jtag widget visible" value="1"/>
+    <single attribute="sof manager visible" value="0"/>
+    <multi attribute="column width" size="23" value="34,34,60,74,68,70,88,88,98,98,88,88,110,101,101,101,101,101,101,101,101,107,58"/>
+    <multi attribute="frame size" size="2" value="1392,837"/>
+    <multi attribute="jtag widget size" size="2" value="403,145"/>
+  </global_info>
+</session>

@@ -1,0 +1,12 @@
+TITLE	SDXEND	Pad until end of the SDX ROM
+
+; Well, actually we pad far more.
+; We'll cut out the first 8KB of what is produced.
+
+.Z80
+CSEG
+
+FIN::
+	DS	02000H
+
+END

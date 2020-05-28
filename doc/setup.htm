@@ -1,0 +1,128 @@
+<HTML>
+  <HEAD>
+    <LINK REL="stylesheet" TYPE="text/css" HREF="memotech.css" MEDIA="all">
+  </HEAD>
+  <BODY>
+
+    <H1>Setup</H1>
+
+    <P>This page has first time setup instructions for REMEMOTECH.
+
+<!--...sSetting up the DE1:4:-->
+<A NAME="board"><H2>Setting up the DE1</H2></A>
+
+<P>Get an
+<A HREF="http://www.terasic.com.tw/cgi-bin/page/archive.pl?No=83" TARGET="_main">Altera DE1</A>
+board.
+They can be purchased from Terasic for $150 plus shipping ($52 to UK).
+If you're in the UK expect DHL to charge import duty (&pound;25)
+and an admin fee (&pound;1.25).
+
+<P>Download and install Quartus 13.0sp1 Web Edition from Altera.
+Setting up Quartus is straightforward, but be there are some wrinkles if
+running on Linux, so see the <A HREF="quartus.htm">Quartus</A> page.
+
+<P>Connect the USB Blaster cable to the DE1.
+
+<P>Get the REMEMOTECH package and <CODE>unzip</CODE> it.
+
+<P>Change directory into the <CODE>quartus</CODE> directory.
+
+<P>Start Quartus and open the <CODE>rememotech.qpf</CODE> project.
+
+<P>Compile.
+Make yourself a coffee whilst it does its thing.
+It will spit out lots of warnings, which almost always can be ignored.
+
+<P>Use the Programmer tool to download the generated
+<CODE>rememotech.pof</CODE> file to the DE1.
+
+<P>Turn off the power, plug in a PS/2 keyboard and VGA monitor.
+
+<P>If you turn it back on now, the seven-segment displays will probably
+say <CODE>EEFF</CODE>, because you've yet to initialise the Flash contents.
+<!--...e-->
+<!--...sSetting up the Flash:4:-->
+<A NAME="flash"><H2>Setting up the Flash</H2></A>
+
+<P>Change directory into the <CODE>firmware</CODE> directory.
+
+<P>If you wish to rebuild the Flash image, then ensure that <CODE>memu</CODE>
+from the <A HREF="http://www.nyangau.org/memu/memu.htm" TARGET="_main">MEMU</A>
+package is on your <CODE>PATH</CODE>, and ensure that 
+<CODE>/usr/share/cpmtools/diskdefs</CODE> contains the Memotech CP/M
+filesystem disk definitions from the Memotech
+<A HREF="http://www.nyangau.org/memotech/disktypes.htm" TARGET="_main">Disk Types</A>
+page.
+Then type <CODE>make</CODE>.
+I only supply a <CODE>makefile</CODE> for use on a UNIX system.
+The REMEMOTECH distribution should include a pre-built Flash image,
+so this is only a factor if you want to tinker.
+
+<P>Find a small SD Card (between 512KB and 1GB in size) which will be your
+"Flash image" SD Card.
+This card will hold a raw image of the Flash, not a filesystem of any kind.
+Keep this seperate from any SD Cards you use to store Memotech CP/M files on.
+
+<P>Copy the 512KB <CODE>flash.bin</CODE> image to the first 512KB of
+the SD Card, in raw block mode.
+This will obliterate any filesystem previously on the SD Card.
+
+<P>I find that the SD Card support in Fedora 14 Linux does not work for me.
+So I use SanDisk SD Cards that also have USB connectors, and its the USB
+connector I plug into my Linux system.
+
+<P>On my Linux system, when I plug my SD/USB Card into a USB slot it
+appears as the <CODE>/dev/sdc</CODE> device
+(this could easily be another device on your Linux system).
+Some Linuxes will automatically mount the card when you plug it in.
+If this happens, unmount it.
+To copy the image to the SD Card, I use :-
+<PRE>
+$ su
+# dd if=flash.bin of=/dev/sdc</PRE>
+
+<P>To initialise the Flash from this image,
+power up the DE1, insert the SD Card into the socket on the DE1 board,
+press and hold KEY2, KEY1 and KEY0, press and release KEY3,
+and then release all the keys.
+This will reset the T80 (KEY3), and cause
+<A HREF="software.htm#reboot">REBOOT</A>
+to copy from SD Card to Flash (KEY2),
+to copy the ROM images from Flash to SRAM (KEY1) and
+to copy the initial RAM Disc image from Flash to SRAM (KEY0).
+
+<P>If you see <CODE>EExx</CODE> on the seven-segment displays, an error has
+occurred.
+See the <A HREF="software.htm#reboot">REBOOT</A> page.
+
+<P>Now your REMEMOTECH is ready to go, and indeed, after doing the above,
+it will boot to the CP/M prompt.
+<!--...e-->
+<!--...sPrint the label:4:-->
+<H2>Print the label</H2>
+
+<P>If you print the bitmap below at 72dpi you can cut out the white parts and
+lay it on your Altera DE1 :-
+
+<P>
+<IMG SRC="rememotech-label.gif">
+
+<P>The switches are shown in sensible initial positions.
+
+<P>The key labels remind you what
+<A HREF="software.htm#reboot">REBOOT</A> does at reset time,
+if the various buttons are pressed.
+KEY2 is shown with an exclamation mark as a reminder that this button
+is not normally used (only during setup).
+<!--...e-->
+<!--...sInstall the daughter card:4:-->
+<H2>Install the daughter card</H2>
+
+<P>If you have a REMEMOTECH r3 or later and a daughter card,
+power down, install the daughter card into the GPIO slots
+(with VGA connector to the right), and power back up.
+<!--...e-->
+
+  </BODY>
+</HTML>

@@ -1,0 +1,206 @@
+.Z80
+ASEG
+;
+;
+;
+;		*****************************************
+;		*					*
+;		*	REMEMOTECH FORMAT		*
+;		*					*
+;		*****************************************
+;
+; Special version for REMEMOTECH or REMEMOrizer.
+; Written Feb 2012, A.Key
+; Its not really a FORMAT in the normal sense.
+; Instead, it wipes the reserved tracks and directory area.
+;
+; Version
+;
+@V1	EQU	1
+@V2	EQU	0
+;
+; General equates
+;
+BEL	EQU	07H
+LF	EQU	0AH
+CR	EQU	0DH
+EOF	EQU	1AH
+;
+; CP/M BDOS equates
+;
+BDOS	EQU	0005H
+PRINTF	EQU	9
+RESDSC	EQU	13
+SELDSC	EQU	14
+RCDSC	EQU	25
+GETDPB	EQU	31
+RESDRV	EQU	37
+FCB1	EQU	005CH
+FCB2	EQU	006CH
+;
+; Low memory
+;
+BOOTDR	EQU	0044H			; A=0, B=1, ...
+;
+; High memory interface to disk drivers
+;
+DRVRQ	EQU	0FFE8H
+CFGBYT	EQU	0FFE9H
+TRKRQ	EQU	0FFEAH
+SECRQ	EQU	0FFECH
+DMARQ	EQU	0FFEEH
+XCONFIG	EQU	0FFF0H
+XREAD	EQU	0FFF3H
+XWRITE	EQU	0FFF6H
+BLKRD	EQU	0FFF9H
+INITLZ	EQU	0FFFCH
+VERSNO	EQU	0FFFFH
+
+;
+	ORG	100H
+;
+START::
+;
+;The following version number string is harmless code.
+;
+	DB	CR,LF,'*V',@V1+'0','.',@V2+'0',CR,LF,EOF
+
+; look at drive letter
+	LD	A,(FCB1)		; A=1, B=2, ...
+	SUB	2			; B=0, C=1, ...
+	CP	8
+	LD	DE,MSGDRV
+	JP	NC,ABEND
+	LD	(DRIVE),A		; B=0, C=1, ..., I=7
+
+	LD	BC,(BOOTDR)
+	INC	A
+	CP	C
+	LD	DE,MSGBOT
+	JP	Z,ABEND
+
+; reset discs
+	LD	C,RESDSC
+	CALL	BDOS
+
+; remember current disk
+	LD	C,RCDSC
+	CALL	BDOS
+	LD	(ODRIVE),A		; A=0, B=1 ...
+
+; select the disk
+	LD	C,SELDSC
+	LD	A,(DRIVE)
+	INC	A			; B=1, C=2, ..., I=8
+	LD	E,A
+	CALL	BDOS
+	AND	A
+	LD	DE,MSGSEL
+	JP	NZ,ABEND
+
+; get DPB for selected drive
+	LD	C,GETDPB
+	CALL	BDOS
+	LD	(DPB),HL
+
+; select original disk again
+	LD	C,SELDSC
+	LD	A,(ODRIVE)		; A=0, B=1, ...
+	LD	E,A
+	CALL	BDOS
+
+; reset discs, again
+	LD	C,RESDSC
+	CALL	BDOS
+
+; look in DPB
+	LD	IX,(DPB)
+
+; how much do we have to overwrite
+	LD	E,(IX+0)
+	LD	D,(IX+1)		; DE = number of sectors per track
+	LD	C,(IX+13)
+	LD	B,(IX+14)		; BC = number of reserved tracks
+	LD	HL,0
+MUL1:	LD	A,B
+	OR	C
+	JR	Z,MUL2
+	ADD	HL,DE
+	DEC	BC
+	JR	MUL1
+MUL2:
+	LD	E,(IX+7)
+	LD	D,(IX+8)		; DE = number of directory entries - 1
+	INC	DE
+	SRA	D
+	RR	E
+	SRA	D
+	RR	E
+	ADD	HL,DE			; HL = sectors to overwrite
+;
+; Start at the start
+;
+	LD	A,(DRIVE)
+	LD	(DRVRQ),A
+	LD	HL,0
+	LD	(TRKRQ),HL
+	INC	HL
+	LD	(SECRQ),HL
+	LD	HL,BLOCK
+	LD	(DMARQ),HL
+;
+; Write sectors
+;
+NXTSEC:	PUSH	HL
+	CALL	XWRITE
+	JR	NZ,WRTERR
+	LD	HL,(SECRQ)
+	INC	HL
+	LD	(SECRQ),HL
+	LD	E,(IX+0)
+	LD	D,(IX+1)
+	INC	DE
+	AND	A
+	SBC	HL,DE
+	JR	NZ,SAMTRK
+	LD	HL,(TRKRQ)
+	INC	HL
+	LD	(TRKRQ),HL
+	LD	HL,1
+	LD	(SECRQ),HL
+SAMTRK:
+	POP	HL
+	DEC	HL
+	LD	A,H
+	OR	L
+	JR	NZ,NXTSEC
+
+	LD	DE,MSGOK
+	JP	ABEND
+
+WRTERR:	POP	HL
+	LD	DE,MSGWRT
+	JP	ABEND
+;
+; Display message and abort
+;
+ABEND:	LD	C,PRINTF
+	CALL	BDOS
+	RST	0
+;
+DRIVE:	DB	0
+ODRIVE:	DB	0
+DPB:	DW	0
+
+BLOCK:
+REPT 128
+	DB	0E5H
+ENDM
+;
+MSGDRV:	DB	'Bad drive',CR,LF,'$'
+MSGBOT:	DB	'Cannot format the boot drive',CR,LF,'$'
+MSGSEL:	DB	'Cannot select drive',CR,LF,'$'
+MSGWRT:	DB	'Write error',CR,LF,'$'
+MSGOK:	DB	'Disk formatted',CR,LF,'$'
+;
+END

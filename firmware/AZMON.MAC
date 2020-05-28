@@ -1,0 +1,1034 @@
+TITLE	AZMON	Andys ZMON
+;
+; Special version for REMEMOTECH or REMEMOrizer
+; Modified Feb 2013, A.Key
+;
+; Attempts autoboot from F:52, B:18, .. B:1F, in that order.
+; Loads SIDISC support at a higher address in memory.
+;
+; Doesn`t bother with foreign keyboards
+; kills the CTC to ensure that when disc routines EI, they
+; do not leave AZMON wide open to interrupts from basic
+; only perform drive head wiggle if an FDX
+; Changes to make the serial port stuff work
+;
+
+.Z80
+ASEG
+;
+TRUE	EQU	0FFFFH
+FALSE	EQU	NOT TRUE
+;
+ABOOT	EQU	TRUE			;autoboot flag for ROM version
+BOOTYP	EQU	18H			;boot disc type if user does not type
+					;anything after the drive letter
+REMCMD	EQU	TRUE
+;
+@V1	EQU	2
+@V2	EQU	1
+;
+PGPORT	EQU	0
+CTC	EQU	8
+VSPEED	EQU	15
+DISP	EQU	20H
+VADDR	EQU	DISP+18H
+VDATA	EQU	DISP+19H
+SIO1DP	EQU	12;4
+SIO1SP	EQU	14;5
+SIO2DP	EQU	13;8
+SIO2SP	EQU	15;9
+MASKR	EQU	00000001B
+MASKT	EQU	00000100B
+TPA	EQU	100H
+DSKHNDL	EQU	0FFF0H
+CONSUP	EQU	0FFD0H
+TTYIN	EQU	CONSUP
+TTYOUT	EQU	CONSUP+3
+TTYSTS	EQU	CONSUP+6
+CNFGR	EQU	DSKHNDL
+DREAD	EQU	DSKHNDL+3
+DWRITE	EQU	DSKHNDL+6
+DBLKRD	EQU	DSKHNDL+9
+INITLZ	EQU	DSKHNDL+12
+DRVRQ	EQU	DSKHNDL-8
+CFGBY	EQU	DSKHNDL-7
+TRKRQ	EQU	DSKHNDL-6
+SECRQ	EQU	DSKHNDL-4
+DMARQ	EQU	DSKHNDL-2
+SERNO	EQU	0FFC0H
+VERNO	EQU	0FFFFH
+TOAM	EQU	0046H
+CR	EQU	13
+LF	EQU	10
+NULL	EQU	0
+ESC	EQU	27
+BKSP	EQU	8
+BELL	EQU	7
+FWD	EQU	'Y' AND 11111B
+;
+	ORG	100H+0E000H-0E000H
+;
+;	EXT	KBD,EKBD,DISC,EDISC,CRT,ECRT
+;
+.PHASE 02000H
+;
+	IF	ABOOT
+SIZEID	EQU	16
+	DB	8,7,6,5,4,3,2,1
+	ELSE
+	DB	0,0,0,0,0,0,0,0
+	ENDIF
+	DW	ROMID
+	DB	0,0,0,0,0,0
+;main entry point
+	JP	ZMON
+;
+ROMID:	DB	'B8',@V1+'0',@V2+'0'
+	RST	10H
+	DB	84H
+	DB	'B8',@V1+'0',@V2+'0'
+	RET
+;
+;ZMON ----- DO THE STUFF
+;
+ZMON:
+
+	LD	A,0BFH
+	OUT	(5),A
+	IN	A,(5)
+	AND	041H
+	RET	Z			;both shifts pressed, return to BASIC
+
+	DI
+	LD	B,0			;Set up the 80 col card
+	LD	HL,TABLE
+LOOPV:	LD	A,B
+	OUT	(VADDR),A
+	LD	A,(HL)
+	OUT	(VDATA),A
+	INC	HL
+	INC	B
+	LD	A,B
+	CP	17
+	JR	NZ,LOOPV
+
+	LD	B,2			;need to reset twice to be sure
+	LD	A,3			;turn off channel control byte
+LL2:	OUT	(CTC),A
+	OUT	(CTC+1),A
+	OUT	(CTC+2),A
+	OUT	(CTC+3),A
+	DJNZ	LL2
+;
+	LD	C,0			; turn off the sound
+	LD	E,15
+	CALL	SNDVOL
+	INC	C
+	CALL	SNDVOL
+	INC	C
+	CALL	SNDVOL
+	INC	C
+	CALL	SNDVOL
+	LD	E,1
+	CALL	NOITYP
+
+;
+	LD	SP,0E000H
+	LD	HL,02000H		;start of ROM
+	LD	DE,0E000H		;top 8k of RAM
+	LD	BC,02000H		;copy whole lot and have done with
+	LDIR
+
+	JP	SETUP0
+
+	;	CRTC INIT TABLE
+
+TABLE:	DB	VSPEED*8-1		; horizontal total
+	DB	80			; horizontal displayed
+	DB	92			; horizontal sync position
+	DB	9			; h and v sync widths
+					; 039H also seen on older ROMs
+	DB	30			; vertical total
+	DB	3			; vertical total adjust
+	DB	24			; vertical displayed
+	DB	27			; vertical sync position
+	DB	0			; interlace and skew
+	DB	9			; maximum raster address
+	DB	0+1100000B		; cursor start raster
+	DB	9			; cursor end raster
+	DB	0			; display start address high
+	DB	0			; display start address low
+	DB	0			; cursor address high
+	DB	0			; cursor address low
+
+;
+SNDVOL:	LD	A,C			; C=channel
+	ADD	A,A
+	INC	A
+	ADD	A,A
+	ADD	A,A
+	ADD	A,A
+	ADD	A,A
+	SET	7,A
+	OR	E			; E=volume
+	OUT	(6),A
+	IN	A,(3)
+	RET
+;
+NOITYP:	SLA	E			; E=type
+	SLA	E			; 0=periodic,1=white
+	LD	A,11100001B
+	OR	E
+	OUT	(6),A
+	IN	A,(3)
+	RET
+
+	;	THIS CODE IS RELOCATED
+
+NEXT	EQU	$
+
+.DEPHASE
+;
+;***********
+;* MONITOR *
+;***********
+;
+.PHASE NEXT+0E000H-02000H
+
+AZMON::		; ROM SIZING
+;
+BOTTOM:
+	;	FIRST BYTE IS ASCII FOR CURSOR FORWARD
+
+ASCFWD:	DB	FWD
+
+	;	2ND STAGE INITIALISATION
+
+SETUP0:	LD	A,80H		;page to RAM based (SETUP0>0C000H)
+	OUT	(PGPORT),A
+
+SETUP2:	LD	A,0C3H
+	LD	(0000H),A
+	LD	HL,MUMON1
+	LD	(0001H),HL
+
+	;	SIGN ON
+
+.8080
+SIGNON:	LXI	H,MSG0
+	CALL	OPSTC
+	LXI	H,SERNO
+	MVI	B,6
+SERLP:	MOV	A,M
+	INX	H
+	CALL	CO
+	DCR	B
+	JNZ	SERLP
+	MVI	A,'-'
+	CALL	CO
+	MVI	A,'V'
+	CALL	CO
+	LDA	VERNO
+	CALL	OPBTC
+	LXI	H,MSGMT
+	CALL	OPSTC
+
+	;	MEMORY TEST
+
+	LXI	H,$
+MTL2:	MOV	A,M
+	CMA
+	MOV	M,A
+	CMP	M
+	JNZ	MUMONE
+	CMA
+	MOV	M,A
+	CMP	M
+	JNZ	MUMONE
+	DCX	H
+	MOV	A,L
+	ANA	H
+	INR	A
+	JNZ	MTL2
+
+	;	MEMORY OK
+
+	LXI	H,MSG1
+	CALL	OPSTC
+
+
+	;	AUTO BOOT TEST
+
+	CALL	CSTS			;is there a char pressed
+	JZ	AUTOB			;no - so boot
+	CALL	CIO			;what is it
+	JNZ	AUTOB			;not a <CR> so boot
+
+	;	MICRO MONITOR COMMAND INTERPRETTER
+
+MUMON1:	LXI	SP,BOTTOM
+	LXI	H,MSG3
+	CALL	OPSTC
+	CALL	CIO
+	CPI	'B'
+ 	JZ	BOOT
+	CPI	'D'
+	JZ	DIALO1
+	CPI	'G'
+	JZ	GOTO0
+	CPI	'S'
+	JZ	SUBS0
+	CPI	'R'
+	JZ	READ0
+	IFT	REMCMD
+	CPI	'C'
+	JZ	RC
+	ENDIF
+
+	;	ERROR HANDLER
+
+MUMONE:	MVI	A,BELL
+	CALL	CO
+	JMP	MUMON1
+
+	;	STRINGS
+
+MSG0:	DB	'X' AND 11111B
+	DB	'W' AND 11111B
+	DB	'MTX Bootstrap Prom #'
+	DB	NULL
+
+MSGMT:	DB	'V' AND 11111B
+	DB	CR,LF,LF
+	DB	'Ram Test - '
+	DB	NULL
+
+MSG1:	DB	'OK'
+	DB	LF,BELL
+	DB	NULL
+
+MSG2:	DB	CR,LF
+	DB	'Boot '
+	DB	NULL
+
+MSG3:	DB	CR,LF
+	DB	'>'
+	DB	NULL
+
+MSG4:	DB	BKSP,BKSP,BKSP,BKSP,NULL
+
+MSSG11:	DB	'X' AND 11111B
+	DB	'W' AND 11111B
+	DB	'Please Insert System Disc'
+	DB	'V' AND 11111B
+	DB	CR,LF,NULL
+
+MSGSER:	DB	'RS232 B set to 19200,N,8,2',CR,LF,NULL
+MSGDIA:	DB	'Dialog until ^Q',CR,LF,LF,NULL
+MSGRD:	DB	'Reading Intel Hex',CR,LF,LF,NULL
+
+.Z80
+;
+;RAMOK ----- IS IT SAFE TO BOOT FROM THE RAM DISC
+;
+;before testing physical drives examine RAM disc to see if track 0 sector 1
+;has a JP 140H instruction there. this is used to see if F: is bootable
+;
+;Returns Z if can boot from RAM disc
+;
+RAMOK:	LD	A,81H		;first part of RAM disc
+	OUT	(PGPORT),A
+	LD	A,(0000H)
+	CP	0C3H		;got a JP instruction
+	JR	NZ,RAMOK5
+	LD	A,(0001H)
+	CP	040H
+	JR	NZ,RAMOK5
+	LD	A,(0002H)
+	CP	001H
+RAMOK5:	LD	A,80H
+	OUT	(PGPORT),A
+	RET
+;
+;AUTOB ----- AUTOBOOT FROM F:52,B:18,...,B:1F
+;
+AUTOB:	LD	HL,MSG2		;print "Boot "
+	CALL	OPSTC
+	LD	A,(VERNO)
+	OR	40H
+	LD	(VERNO),A	;Signal that SIDISC has been run
+				;In fact we have RAM Disc support
+	CALL	RAMOK		;returns Z if can boot from RAM disc
+	JR	NZ,AUTOB1
+	LD	BC,4*100H+52H	;F:52
+	CALL	AUTOB2
+	;boot F: failed! oh well, look on all partitions of the SD Card
+AUTOB1:	LD	BC,0*100H+18H	;B:18
+	CALL	AUTOB2
+	LD	BC,0*100H+19H	;B:19
+	CALL	AUTOB2
+	LD	BC,0*100H+1AH	;B:1A
+	CALL	AUTOB2
+	LD	BC,0*100H+1BH	;B:1B
+	CALL	AUTOB2
+	LD	BC,0*100H+1CH	;B:1C
+	CALL	AUTOB2
+	LD	BC,0*100H+1DH	;B:1D
+	CALL	AUTOB2
+	LD	BC,0*100H+1EH	;B:1E
+	CALL	AUTOB2
+	LD	BC,0*100H+1FH	;B:1F
+	CALL	AUTOB2
+	JP	AUTOB1
+;Attempt to boot from drive B of config type C
+;This subroutine does not return if boot is successful
+AUTOB2:	PUSH	BC
+	CALL	CSTS		;is there a char pressed
+	JR	Z,AUTOB4	;no - so boot
+	CALL	CIO		;what is it
+	JP	Z,MUMONE	;is a <CR> so abort
+AUTOB4:	POP	BC
+	LD	A,C
+	LD	(CFGBY),A	;set up drive type
+	LD	A,B
+	LD	(DRVRQ),A	;set up drive number B=0,C=1,..
+	PUSH	AF
+	CALL	INITLZ		;initialise disk routines
+	CALL	CNFGR		;configure the drive
+				;ignore return code, always able to configure
+	POP	AF
+	ADD	A,'B'
+	CALL	CO		;"D"
+	LD	A,(CFGBY)
+	CALL	OPBTC		;"13"
+	LD	A,' '
+	CALL	CO
+	CALL	SETUPD
+	CALL	DREAD
+	AND	A		;Z=>successful
+	JP	Z,BOOTM2
+	LD	HL,MSG4		;failed, so backspace
+	JP	OPSTC
+;
+;BOOT ----- USER HAS POSSIBLY PRESSED A KEY AND WISHES TO STOP AUTOBOOT
+;
+BOOT:	CALL	CIO
+	JP	Z,AUTOB
+	CP	'B'
+	JP	C,MUMONE
+	CP	'I'+1
+	JP	NC,MUMONE
+	SUB	'B'
+	LD	(DRVRQ),A
+	CALL	GETHEX
+	LD	A,L
+	LD	(FRIGC+1),A
+BDFLT:	CALL	CRLF
+	CALL	INITLZ
+FRIGC:	LD	A,BOOTYP
+	LD	(CFGBY),A
+	LD	A,(DRVRQ)
+	CALL	CNFGR
+	OR	A
+	JP	NZ,MUMONE
+	CALL	SETUPD
+;normal bootstrap mechanism
+	LD	C,1
+BOOTL:	CALL	DREAD
+	AND	A
+	JR	Z,BOOTM
+	LD	HL,MSSG11
+	DEC	C
+	CALL	Z,OPSTC
+	LD	C,100
+	JR	BOOTL
+;
+BOOTM2:	CALL	CRLF
+BOOTM:	LD	SP,TPA+256	; STACK OUT OF BOOT AREA
+	JP	TPA		; EXECUTE COLD START LOADER
+;
+;SETUPD ----- SET UP DISC
+;
+SETUPD:	LD	A,(0FFC1H)
+	CP	'F'			; F from the @FDX version number
+	JR	NZ,NOT3
+	LD	A,(CFGBY)		;frigged around for lousy QUME drives
+	CP	3
+	JR	NZ,NOT3
+	LD	HL,20
+	LD	(TRKRQ),HL
+	CALL	0FC91H			; RWGO in FDX DISC.MAC module
+NOT3:	LD	HL,0
+	LD	(TRKRQ),HL
+	INC	HL
+	LD	(SECRQ),HL
+	LD	HL,TPA
+	LD	(DMARQ),HL
+	RET
+
+.8080
+	;	GENERAL ROUTINES	
+
+CRLF:	MVI	A,CR
+	CALL	CO
+	MVI	A,LF
+CO:	PUSH	B
+	MOV	C,A
+	PUSH	PSW
+	CALL	TTYOUT
+	POP	PSW
+	POP	B
+	RET
+
+DIALO1:	CALL	CIO
+	JNZ	MUMONE
+	CALL	CRLF
+	CALL	RSU	; setup RS232
+	LXI	H,MSGSER
+	CALL	OPSTC
+	LXI	H,MSGDIA
+	CALL	OPSTC
+DIALOG:	CALL	CSTS
+	JNZ	CTP
+	CALL	RSTS
+	JNZ	RTC
+	JMP	DIALOG
+CTP:	CALL	TTYIN	; AVOID UPPER CASE CONVERSION
+	ANI	7FH
+	CPI	'Q' AND 11111B
+	JZ	MUMON1
+	CALL	PO
+	JMP	DIALOG
+RTC:	CALL	RI
+	CALL	CO
+	JMP	DIALOG
+
+READ0:	CALL	CIO
+	JNZ	MUMONE
+	CALL	CRLF
+	CALL	RSU	; setup RS232
+	LXI	H,MSGSER
+	CALL	OPSTC
+	LXI	H,MSGRD
+	CALL	OPSTC
+READ1:	CALL	PRI
+	CPI	':'
+	JNZ	READ1
+	MVI	D,0
+	CALL	BYTE
+	ORA	A
+	JZ	EOFM
+	MOV	E,A
+	MVI	A,'.'
+	CALL	CO
+	CALL	BYTE
+	MOV	H,A
+	CALL	BYTE
+	MOV	L,A
+	CALL	BYTE
+READ2:	CALL	BYTE
+	MOV	M,A
+	INX	H
+	DCR	E
+	JNZ	READ2
+	CALL	BYTE
+	JZ	READ1
+	JMP	MUMONE
+EOFM:	CALL	BYTE
+	MOV	H,A
+	CALL	BYTE
+	MOV	L,A
+	CALL	BYTE
+	CALL	BYTE
+	JNZ	MUMONE
+	CALL	CRLF
+	PCHL
+
+BYTE:	PUSH	D
+BYTE1:	CALL	PRI
+	CALL	CHKHX
+	JNZ	BYTE1
+	MOV	A,E
+	RLC
+	RLC
+	RLC
+	RLC
+	PUSH	PSW
+BYTE2:	CALL	PRI
+	CALL	CHKHX
+	JNZ	BYTE2
+	POP	PSW
+	ADD	E
+	MOV	B,A
+	POP	D
+	ADD	D
+	MOV	D,A
+	MOV	A,B
+	RET
+
+SUBS0:	CALL	GETHEX
+	CALL	CRLF
+	CALL	DISPL
+	MVI	C,0FH ; M.S.NIBLE
+SUBS1:	CALL	CI
+	CALL	CHKHX
+	JZ	DPST
+	CPI	' '
+	JZ	NNBL
+	CPI	LF
+	JZ	NBLK
+	CPI	CR
+	PUSH	PSW
+	CZ	CRLF
+	POP	PSW
+	JZ	MUMON1
+	JMP	SUBS1
+
+DISPL:	PUSH	H
+	PUSH	B
+	MOV	A,L
+	MOV	C,L
+	ANI	0F0H
+	MOV	L,A
+	CALL	CRLF
+	MOV	A,H
+	CALL	OPBTC
+	MOV	A,L
+	CALL	OPBTC
+	MVI	A,':'
+	CALL	CO
+	MVI	B,16
+DISP1:	MVI	A,' '
+	CALL	CO
+	MOV	A,M
+	CALL	OPBTC
+	INX	H
+	DCR	B
+	JNZ	DISP1
+	MOV	A,C
+	ANI	0FH
+	MVI	A,CR
+	CALL	CO
+	MOV	A,C
+	ANI	0FH
+	MOV	C,A
+	ADD	C
+	ADD	C
+	ADI	6
+	MOV	B,A
+	LDA	ASCFWD
+CHXN:	CALL	CO
+	DCR	B
+	JNZ	CHXN
+	POP	B
+	POP	H
+	RET
+
+ADVNC:	MOV	A,C
+	CMA
+	MOV	C,A
+	CPI	0FH
+	RNZ
+	INX	H
+	MOV	A,L
+	ANI	0FH
+	JZ	DISPL
+	LDA	ASCFWD
+	CALL	CO
+	RET
+
+DPST:	MOV	A,C
+	CPI	0F0H
+	JZ	DPST1
+	MOV	A,E
+	RLC
+	RLC
+	RLC
+	RLC
+	MOV	E,A
+DPST1:	MOV	A,M
+	ANA	C
+	ORA	E
+	MOV	M,A
+	CMP	M
+	JNZ	SUBS1
+	MOV	A,B
+	CALL	CO
+	CALL	ADVNC
+	JMP	SUBS1
+
+NNBL:	LDA	ASCFWD
+	CALL	CO
+	CALL	ADVNC
+	JMP	SUBS1
+
+NBLK:	MVI	C,0FH
+	MOV	A,L
+	ORI	0FH
+	MOV	L,A
+	INX	H
+	CALL	DISPL
+	JMP	SUBS1
+
+GOTO0:	CALL	GETHEX
+	CALL	CRLF
+	PCHL
+
+GETHEX:	LXI	H,0
+	MOV	E,H
+GTHX1:	MVI	D,0
+	DAD	H
+	DAD	H
+	DAD	H
+	DAD	H
+	DAD	D
+	CALL	CIO
+	CALL	CHKHX
+	JZ	GTHX1
+	CPI	CR
+	JNZ	MUMONE
+	RET
+
+OPSTC:	MOV	A,M
+	ORA	A
+	RZ
+	CALL	CO
+	INX	H
+	JMP	OPSTC
+OPBTC:	PUSH	B
+	CALL	HXAJ
+	MOV	A,B
+	CALL	CO
+	MOV	A,C
+	CALL	CO
+	POP	B
+	RET
+HXAJ:	PUSH	PSW
+	PUSH	PSW
+	ANI	0F0H
+	RRC
+	RRC
+	RRC
+	RRC
+	ADI	30H
+	CPI	3AH
+	JC	HXAJ0
+	ADI	7
+HXAJ0:	MOV	B,A
+	POP	PSW
+	ANI	0FH
+	ADI	30H
+	CPI	3AH
+	JC	HXAJ1
+	ADI	7
+HXAJ1:	MOV	C,A
+	POP	PSW
+	RET
+
+CHKHX:	CPI	'0'
+	JC	SIT
+	CPI	'9'+1
+	JNC	HEXT
+	MOV	B,A
+	SUI	'0'
+CHHX1:	MOV	E,A
+	MOV	A,B
+	CMP	A
+	RET	;A=ASCII/B=ASCII/E=BINARY
+HEXT:	CPI	'A'
+	JC	SIT
+	CPI	'F'+1
+	JNC	SIT
+	MOV	B,A
+	SUI	37H
+	JMP	CHHX1
+SIT:	CPI	'0'
+	RET
+
+CI:	CALL	TTYIN
+	ANI	7FH
+UCCNV:	PUSH	B
+	MOV	B,A
+	ANI	01000000B
+	MOV	A,B
+	POP	B
+	RZ
+	ANI	11011111B
+	RET
+
+	; remote command mode
+.Z80
+	IFT	REMCMD
+
+MSGRC:	DB	'Remote command mode',CR,LF,NULL
+
+RC:	CALL	CIO
+	JP	NZ,MUMONE
+	CALL	CRLF
+	CALL	RSU	; setup RS232
+	LD	HL,MSGSER
+	CALL	OPSTC
+	LD	HL,MSGRC
+	CALL	OPSTC
+;
+RCNEXT:	CALL	RI	; command_byte
+	DEC	A
+	JR	Z,RCI
+	DEC	A
+	JR	Z,RCO
+	DEC	A
+	JR	Z,RCR
+	DEC	A
+	JR	Z,RCW
+	DEC	A
+	JP	Z,RCRC
+	DEC	A
+	JP	Z,RCWC
+	DEC	A
+	JP	Z,RCCOPY
+	DEC	A
+	JP	Z,RCCALL
+	JP	MUMONE
+
+; --> 01 port
+; <-- byte
+RCI:	CALL	RI	; port
+	LD	C,A
+	IN	A,(C)
+	JR	RCRET
+
+; --> 02 port byte
+; <-- 00
+RCO:	CALL	RI	; port
+	LD	C,A
+	CALL	RI	; byte
+	OUT	(C),A
+RCRETZ:	XOR	A
+RCRET:	CALL	PO
+	JR	RCNEXT
+
+; --> 03 addr_lo addr_hi count
+; <-- bytes
+RCR:	CALL	RCADDR
+	CALL	RI
+	LD	B,A
+RCR2:	LD	A,(HL)
+	INC	HL
+	CALL	PO
+	DJNZ	RCR2
+	JR	RCNEXT
+
+; --> 04 addr_lo addr_hi count bytes
+; <-- 00
+RCW:	CALL	RCADDR
+	CALL	RI
+	LD	B,A
+RCW2:	CALL	RI
+	LD	(HL),A
+	INC	HL
+	DJNZ	RCW2
+	JR	RCRETZ
+
+; --> 05 addr_lo addr_hi count
+; <-- run_data
+RCRC:	CALL	RCADDR
+	CALL	RI
+	LD	B,A
+RCRC2:	LD	A,B
+	AND	A
+	JP	Z,RCNEXT
+; >=1 byte
+	LD	A,(HL)
+	INC	HL
+	DJNZ	RCRC3
+; 1 byte
+	LD	E,A
+	LD	A,1
+	CALL	PO
+	LD	A,E
+	JP	RCRET
+; >1 byte
+RCRC3:	LD	C,1
+	CALL	RCRUN
+	LD	E,A
+	LD	A,C
+	CP	1
+	JR	Z,RCRC4
+; run
+	NEG
+	CALL	PO
+	LD	A,E
+	CALL	PO
+	JR	RCRC2
+; no run
+RCRC4:	LD	A,E
+	LD	D,H
+	LD	E,L
+	DEC	DE
+	CALL	RCLIT
+	LD	A,C
+	CALL	PO
+RCRC6:	LD	A,(DE)
+	INC	DE
+	CALL	PO
+	DEC	C
+	JR	NZ,RCRC6
+	JR	RCRC2
+
+; before: a=first byte, hl->next byte, c=1, b>0
+; after: c =run length, c>0 and c<128, hl->next byte, b reduced by c, a=byte
+RCRUN:
+RCRUN2:	CP	(HL)
+	RET	NZ
+	INC	HL
+	INC	C
+	BIT	7,C
+	JR	NZ,RCRUN4
+	DJNZ	RCRUN2
+	RET
+RCRUN4:	DEC	C
+	DEC	HL
+	RET
+
+; before a=first byte, hl->next byte, c=1, b>0
+; after: c=lit length, c>0 and c<128, h->next byte, b reduced by c
+RCLIT:
+RCLIT2:	CP	(HL)
+	JR	Z,RCLIT4
+	LD	A,(HL)
+	INC	HL
+	INC	C
+	BIT	7,C
+	JR	NZ,RCLIT6
+	DJNZ	RCLIT2
+	RET
+RCLIT4:	INC	B
+RCLIT6:	DEC	C
+	DEC	HL
+	RET
+
+; --> 06 addr_lo addr_hi run_data 00
+; <-- 00
+RCWC:	CALL	RCADDR
+RCWC2:	CALL	RI
+	CP	0
+	JP	Z,RCRETZ
+	JP	M,RCWC6
+	LD	B,A
+RCWC4:	CALL	RI
+	LD	(HL),A
+	INC	HL
+	DJNZ	RCWC4
+	JR	RCWC2
+RCWC6:	NEG
+	LD	B,A
+	CALL	RI
+RCWC8:	LD	(HL),A
+	INC	HL
+	DJNZ	RCWC8
+	JR	RCWC2
+
+; --> 07 src_lo src_hi dst_lo dst_hi count_lo count_hi
+; <-- 00
+RCCOPY:	CALL	RCADDR
+	CALL	RI
+	LD	E,A
+	CALL	RI
+	LD	D,A
+	CALL	RI
+	LD	C,A
+	CALL	RI
+	LD	B,A
+	LDIR
+	JP	RCRETZ
+
+; --> 08 addr_lo addr_hi
+; <-- a
+RCCALL:	CALL	RCADDR
+	CALL	RCCAL2
+	JP	RCRET
+RCCAL2:	JP	(HL)
+
+; get address
+RCADDR:	CALL	RI
+	LD	L,A	; addr_lo
+	CALL	RI
+	LD	H,A	; addr_hi
+	RET
+
+	ENDIF
+
+.8080
+CIO:	CALL	CI
+	CALL	CO
+	CPI	CR
+	RET
+
+CSTS	EQU	TTYSTS
+
+PRI:	CALL	RSTS
+	JNZ	RI
+	CALL	CSTS
+	JZ	PRI
+	JMP	CI
+
+PO:	PUSH	B
+	MOV	C,A
+	CALL	SIO2OUT
+	POP	B
+	RET
+
+RI:
+SIO2IN:	IN	SIO2SP
+	ANI	MASKR
+	JZ	SIO2IN
+	IN	SIO2DP
+	RET
+
+SIO2OUT:IN	SIO2SP
+	ANI	MASKT
+	JZ	SIO2OUT
+	MOV	A,C
+	OUT	SIO2DP
+	RET
+
+RSTS:	IN	SIO2SP
+	ANI	MASKR
+	RET
+
+.Z80
+; set up RS232 port B as 19200 baud, 8 bits/char, no parity, 2 stop bits
+RSU:	LD	A,003H		; reset
+	OUT	(CTC+2),A
+	LD	A,045H		; set divider
+	OUT	(CTC+2),A
+	LD	A,001H		; 19200 baud
+	OUT	(CTC+2),A
+	LD	A,018H		; error-reset
+	OUT	(SIO2SP),A
+	LD	A,001H		; register 1
+	OUT	(SIO2SP),A
+	XOR	A
+	OUT	(SIO2SP),A
+	LD	A,003H		; register 3
+	OUT	(SIO2SP),A
+	LD	A,0E1H		; 8 bits/char out
+	OUT	(SIO2SP),A
+	LD	A,004H		; register 4
+	OUT	(SIO2SP),A
+	LD	A,04CH		; x16 no parity 2 stop bits
+	OUT	(SIO2SP),A
+	LD	A,005H		; register 5
+	OUT	(SIO2SP),A
+	LD	A,0EAH		; DTR=RTS=1
+	OUT	(SIO2SP),A
+	RET
+
+;
+EAZMON::	; ROM SIZING
+;
+.DEPHASE
+;
+EZMON::
+;
+END
