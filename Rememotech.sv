@@ -135,12 +135,12 @@ assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DD
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
 
-assign AUDIO_S = 0;
-assign AUDIO_L = 0;
-assign AUDIO_R = 0;
-assign AUDIO_MIX = 0;
+assign AUDIO_S = status[11];
+assign AUDIO_L = {AudioOut,8'b0};
+assign AUDIO_R = {AudioOut,8'b0};
+assign AUDIO_MIX = status[10:9];
 
-assign LED_DISK = 0;
+//assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 
@@ -153,13 +153,15 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 localparam CONF_STR = {
 	"Rememotech;;",
 	"-;",
-	"T9,Step;",
+	"S,VHD;",
+	"OB,Sound, Unsigned, Signed;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O2,PAL,Normal,Marat;",
 	"O3,Hz,50,60;",
 	"O4,Video Out,80Col,VDP;",
 	"O57,Cpu Mzh,12.5,12.5,8.333,6.25,5,4.166,3.571,3.125;",
    "O8,OSD DEBUG,Yes,No;",
+	"O9A,AudioMix,No, 25%, 50%, 100%-Mono;",
 //	"O7,OSD DEBUG Enable,Yes,No;",
 //	"O8,Negate Blanks,No,Yes;",
 	"-;",
@@ -181,12 +183,27 @@ localparam CONF_STR = {
 wire forced_scandoubler;
 wire  [1:0] buttons;
 wire [31:0] status;
-//wire [10:0] ps2_key;
+wire [10:0] ps2_key;
+
+wire [31:0] sd_lba;
+wire        sd_rd;
+wire        sd_wr;
+wire        sd_ack;
+wire  [8:0] sd_buff_addr;
+wire  [7:0] sd_buff_dout;
+wire  [7:0] sd_buff_din;
+wire        sd_buff_wr;
+wire        img_mounted;
+wire        img_readonly;
+wire [63:0] img_size;
+wire        sd_ack_conf;
+
+
 
 
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
-	.clk_sys(CLK_50M),
+	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
 	.conf_str(CONF_STR),
@@ -196,7 +213,22 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.status(status),
 //	.status_menumask({status[5]}),
 	
-//	.ps2_key(ps2_key)
+	.sd_lba(sd_lba),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
+	.sd_ack(sd_ack),
+	.sd_ack_conf(sd_ack_conf),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din),
+	.sd_buff_wr(sd_buff_wr),
+	.img_mounted(img_mounted),
+	.img_readonly(img_readonly),
+	.img_size(img_size),
+	
+	.ioctl_wait(0),
+	
+	.ps2_key(ps2_key),
 
 	.ps2_kbd_clk_out(Ps2_Clk),
 	.ps2_kbd_data_out(Ps2_Dat)
@@ -217,6 +249,52 @@ pll pll
 
 wire reset = RESET | status[0] | buttons[1];
 
+
+//////////////////   SD   ///////////////////
+
+wire sdclk;
+wire sdmosi;
+wire sdmiso = vsd_sel ? vsdmiso : SD_MISO;
+wire sdss;
+
+reg vsd_sel = 0;
+always @(posedge clk_25Mhz) if(img_mounted) vsd_sel <= |img_size;
+
+wire vsdmiso;
+sd_card sd_card
+(
+	.*,
+	.clk_spi(clk_25Mhz),
+	.sdhc(1),
+	.sck(sdclk),
+	.ss(sdss | ~vsd_sel),
+	.mosi(sdmosi),
+	.miso(vsdmiso)
+);
+
+assign SD_CS   = sdss   |  vsd_sel;
+assign SD_SCK  = sdclk  & ~vsd_sel;
+assign SD_MOSI = sdmosi & ~vsd_sel;
+
+reg sd_act;
+
+always @(posedge clk_25Mhz) begin
+	reg old_mosi, old_miso;
+	integer timeout = 0;
+
+	old_mosi <= sdmosi;
+	old_miso <= sdmiso;
+
+	sd_act <= 0;
+	if(timeout < 1000000) begin
+		timeout <= timeout + 1;
+		sd_act <= 1;
+	end
+
+	if((old_mosi ^ sdmosi) || (old_miso ^ sdmiso)) timeout <= 0;
+end
+
+
 //////////////////////////////////////////////////////////////////
 
 //wire [1:0] col = status[4:3];
@@ -228,6 +306,10 @@ wire VBlank;
 wire VSync;
 wire Ps2_Clk, Ps2_Dat;
 wire  [2:0] CpuSpeed;
+
+wire [9:0] LEDR;
+assign LED_DISK = LEDR[0]; // To see the disk activity
+
 
 assign CpuSpeed = (status[7:5]==3'b0) ? 3'b001:status[7:5];
 
@@ -249,10 +331,10 @@ rememotech rememotech
     //.SRAM_WE_N           (SRAM_WE_N),
     //.SRAM_DQ             (SRAM_DQ),
     // SD card
-    //.SD_CLK              (),
-    //.SD_CMD              (),
-    //.SD_DAT              (),
-    //.SD_DAT3             (),
+    .SD_CLK              (sdclk),
+    .SD_CMD              (sdss),
+    .SD_DAT              (sdmiso),
+    .SD_DAT3             (sdmosi),
     // PS/2 keyboard
     .PS2_CLK             (Ps2_Clk),
     .PS2_DAT             (Ps2_Dat),
@@ -262,7 +344,7 @@ rememotech rememotech
     // key switches
     .KEY                 ({reset,3'b111}),
     // LEDs
-    //.LEDR                (),
+    .LEDR                (LEDR),
     //.LEDG                (),
     // 7 segment displays
     //.HEX3,HEX2,HEX1,HEX0 (),
@@ -277,13 +359,6 @@ rememotech rememotech
     // I2C
     //.I2C_SCLK            (),
     //.I2C_SDAT            (),
-    // Audio
-    //.AUD_XCK             (),
-    //.AUD_BCLK            (),
-    //.AUD_ADCLRCK         (),
-    //.AUD_ADCDAT          (),
-    //.AUD_DACLRCK         (),
-    //.AUD_DACDAT          (),
     // UART
     //.UART_RXD            (),
     //.UART_TXD            (),
@@ -316,10 +391,28 @@ rememotech rememotech
 	 .Z80_Data 					(Z80Data),
 	 .Z80F_BData		 		(Z80F_BData),
 	 .Hex							(Hex),
-	 .EKey						(status[9])
+	 .EKey						(status[9]),
+    .key_ready  				(key_strobe),//key_ready), //: in  std_logic;
+    .key_stroke 				(~ps2_key[9]), //: in  std_logic;
+    .key_code   				({1'b0,ps2_key[8:0]}), //: in  std_logic_vector(9 downto 0)
+	 .clk_sys					(clk_sys),
+	 .sound_out					(AudioOut)
+
     );
 
+wire clk_sys;
+wire [7:0] AudioOut;
+	 
+//wire key_ready;
+//
+//always @(ps2_key) 
+//begin 
+//	key_ready <= 1;
+//end	 
 
+wire key_strobe = old_keystb ^ ps2_key[10];
+reg old_keystb = 0;
+always @(posedge clk_sys) old_keystb <= ps2_key[10];
 
 assign CLK_VIDEO = clk_25Mhz;
 assign CE_PIXEL = 1;//ce_pix;

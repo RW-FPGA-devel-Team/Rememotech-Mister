@@ -56,13 +56,6 @@ entity rememotech is
     -- I2C
     I2C_SCLK            : inout std_logic;
     I2C_SDAT            : inout std_logic;
-    -- Audio
-    AUD_XCK             : out std_logic;
-    AUD_BCLK            : out std_logic;
-    AUD_ADCLRCK         : out std_logic;
-    AUD_ADCDAT          : in  std_logic;
-    AUD_DACLRCK         : out std_logic;
-    AUD_DACDAT          : out std_logic;
     -- UART
     UART_RXD            : in  std_logic;
     UART_TXD            : out std_logic;
@@ -97,7 +90,13 @@ entity rememotech is
 	 Z80_Data 				: out STD_LOGIC_VECTOR (15 DOWNTO 0);
 	 Z80F_BData    		: out STD_LOGIC_VECTOR (15 DOWNTO 0);
 	 Hex						: out STD_LOGIC_VECTOR (15 DOWNTO 0);
-	 EKey           		: in std_logic
+	 EKey           		: in std_logic;
+    key_ready  			: in  std_logic;
+    key_stroke 			: in  std_logic;
+    key_code   			: in  std_logic_vector(9 downto 0);
+	 clk_sys					: out std_logic;
+	 -- Audio
+	 sound_out	    		: out std_logic_vector(7 downto 0)
 	 
     );
 end rememotech;
@@ -550,9 +549,9 @@ architecture behavior of rememotech is
   signal sd_temp       : std_logic_vector(24 downto 0) := (others => '0');
 
   -- keyboard related
-  signal key_ready  : std_logic;
-  signal key_stroke : std_logic;
-  signal key_code   : std_logic_vector(9 downto 0);
+--  signal key_ready  : std_logic;
+--  signal key_stroke : std_logic;
+--  signal key_code   : std_logic_vector(9 downto 0);
   signal drive      : std_logic_vector(7 downto 0);
   signal sense5     : std_logic_vector(7 downto 0);
   signal sense6     : std_logic_vector(7 downto 0);
@@ -787,22 +786,6 @@ begin
       output    => sound_output
       );
 
-  U_I2S_INTF : i2s_intf
-    port map
-      (
-      clk_25mhz,
-      RESET_n,
-      open,
-      open,
-      sound_to_codec & "000000",
-      sound_to_codec & "000000",
-      AUD_XCK,
-      AUD_DACLRCK,
-      AUD_BCLK,
-      AUD_DACDAT,
-      AUD_ADCDAT
-      );
-
   U_I2C_LOADER : i2c_loader 
     generic map
       (
@@ -837,28 +820,28 @@ begin
       di        => sd_data
       );
 
-  U_PS2KBD : ps2_kbd
-    port map
-      (
-      clk_1mhz   => clk_1mhz,
-      PS2_CLK    => PS2_CLK,
-      PS2_DAT    => PS2_DAT,
-      key_ready  => key_ready,
-      key_stroke => key_stroke,
-      key_code   => key_code
-      );
+--  U_PS2KBD : ps2_kbd
+--    port map
+--      (
+--      clk_1mhz   => clk_1mhz,
+--      PS2_CLK    => PS2_CLK,
+--      PS2_DAT    => PS2_DAT,
+--      key_ready  => key_ready,
+--      key_stroke => key_stroke,
+--      key_code   => key_code
+--      );
 
   U_MTXKBD : mtx_kbd
     port map
       (
-      clk_1mhz   => clk_1mhz,
+      clk_1mhz   => CLOCK_50,--clk_1mhz,
       key_ready  => key_ready,
       key_stroke => key_stroke,
       key_code   => key_code,
       drive      => drive,
       sense5     => sense5,
       sense6     => sense6,
-      extra_keys => extra_keys_bak
+      extra_keys => extra_keys --_bak
       );
 
   U_CTC : ctc
@@ -1005,10 +988,16 @@ begin
 
   -- Reset
   RESET_n <= not KEY(3);-- and ( extra_keys(12) or extra_keys(13) );
-  extra_keys <= "11111111111111";-- & EKey; --F9 Pulsada
+  --extra_keys <= "11111111111111";-- & EKey; 
   
   --Clk_Video <= clk_25mhz; --Sacamos a fuera el clock con el que mandamos sobre el vdp, supuestamente Clock de Video.
   clk_25mhz <= Clk_Video;
+  
+  clk_sys <= clk_cpu; --Sacamos a fuera el clock de CPU como clk_sys para darselo a HPS_IO
+  
+  
+  sound_out <= sound_output;
+  
   
   -- Is the Flash memory visible in the Z80 address space?
   flash_vis <= '1' when ( iobyte(3 downto 0) = "1111" ) else '0';
