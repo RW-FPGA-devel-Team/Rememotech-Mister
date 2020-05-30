@@ -76,6 +76,7 @@ module emu
 	output        SD_CS,
 	input         SD_CD,
 
+	
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -128,19 +129,19 @@ module emu
 assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
-assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
+//assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
 
-assign AUDIO_S = status[11];
+assign AUDIO_S = 0;//status[11];
 assign AUDIO_L = {AudioOut,8'b0};
 assign AUDIO_R = {AudioOut,8'b0};
-assign AUDIO_MIX = status[10:9];
+assign AUDIO_MIX = 0;//status[10:9];
 
-//assign LED_DISK = 0;
+assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 
@@ -153,15 +154,14 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 localparam CONF_STR = {
 	"Rememotech;;",
 	"-;",
-	"S,VHD;",
-	"OB,Sound, Unsigned, Signed;",
+//	"OB,Negate SD_CS, No, Yes;",
+	"O4,Video Out,80Col,VDP;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O2,PAL,Normal,Marat;",
-	"O3,Hz,50,60;",
-	"O4,Video Out,80Col,VDP;",
+	"O3,Hz,60,50;",
 	"O57,Cpu Mzh,12.5,12.5,8.333,6.25,5,4.166,3.571,3.125;",
    "O8,OSD DEBUG,Yes,No;",
-	"O9A,AudioMix,No, 25%, 50%, 100%-Mono;",
+//	"O9A,AudioMix,No, 25%, 50%, 100%-Mono;",
 //	"O7,OSD DEBUG Enable,Yes,No;",
 //	"O8,Negate Blanks,No,Yes;",
 	"-;",
@@ -185,21 +185,6 @@ wire  [1:0] buttons;
 wire [31:0] status;
 wire [10:0] ps2_key;
 
-wire [31:0] sd_lba;
-wire        sd_rd;
-wire        sd_wr;
-wire        sd_ack;
-wire  [8:0] sd_buff_addr;
-wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din;
-wire        sd_buff_wr;
-wire        img_mounted;
-wire        img_readonly;
-wire [63:0] img_size;
-wire        sd_ack_conf;
-
-
-
 
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
@@ -212,21 +197,6 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.buttons(buttons),
 	.status(status),
 //	.status_menumask({status[5]}),
-	
-	.sd_lba(sd_lba),
-	.sd_rd(sd_rd),
-	.sd_wr(sd_wr),
-	.sd_ack(sd_ack),
-	.sd_ack_conf(sd_ack_conf),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
-	.sd_buff_wr(sd_buff_wr),
-	.img_mounted(img_mounted),
-	.img_readonly(img_readonly),
-	.img_size(img_size),
-	
-	.ioctl_wait(0),
 	
 	.ps2_key(ps2_key),
 
@@ -249,52 +219,6 @@ pll pll
 
 wire reset = RESET | status[0] | buttons[1];
 
-
-//////////////////   SD   ///////////////////
-
-wire sdclk;
-wire sdmosi;
-wire sdmiso = vsd_sel ? vsdmiso : SD_MISO;
-wire sdss;
-
-reg vsd_sel = 0;
-always @(posedge clk_25Mhz) if(img_mounted) vsd_sel <= |img_size;
-
-wire vsdmiso;
-sd_card sd_card
-(
-	.*,
-	.clk_spi(clk_25Mhz),
-	.sdhc(1),
-	.sck(sdclk),
-	.ss(sdss | ~vsd_sel),
-	.mosi(sdmosi),
-	.miso(vsdmiso)
-);
-
-assign SD_CS   = sdss   |  vsd_sel;
-assign SD_SCK  = sdclk  & ~vsd_sel;
-assign SD_MOSI = sdmosi & ~vsd_sel;
-
-reg sd_act;
-
-always @(posedge clk_25Mhz) begin
-	reg old_mosi, old_miso;
-	integer timeout = 0;
-
-	old_mosi <= sdmosi;
-	old_miso <= sdmiso;
-
-	sd_act <= 0;
-	if(timeout < 1000000) begin
-		timeout <= timeout + 1;
-		sd_act <= 1;
-	end
-
-	if((old_mosi ^ sdmosi) || (old_miso ^ sdmiso)) timeout <= 0;
-end
-
-
 //////////////////////////////////////////////////////////////////
 
 //wire [1:0] col = status[4:3];
@@ -306,9 +230,12 @@ wire VBlank;
 wire VSync;
 wire Ps2_Clk, Ps2_Dat;
 wire  [2:0] CpuSpeed;
+//wire SD_CS_n, SD_SCK_tmp, SD_MOSI_tmp;//,SD_MISO_tmp;
 
-wire [9:0] LEDR;
-assign LED_DISK = LEDR[0]; // To see the disk activity
+//assign SD_CS = SD_CS_n;
+//assign SD_SCK = SD_SCK_tmp;
+//assign SD_MOSI = SD_MOSI_tmp;
+
 
 
 assign CpuSpeed = (status[7:5]==3'b0) ? 3'b001:status[7:5];
@@ -316,12 +243,6 @@ assign CpuSpeed = (status[7:5]==3'b0) ? 3'b001:status[7:5];
 rememotech rememotech
     (
     .CLOCK_50              (CLK_50M),//(clk),//(status[9]),//(CLK_50M),
-    //.FL_RST_N            (),
-    //.FL_CE_N             (),
-    //.FL_ADDR             (),
-    //.FL_OE_N             (),
-    //.FL_WE_N             (),
-    //.FL_DQ               (),
     //Mister Drived by Bram Memory // 256Kx16bit 10ns SRAM
     //.SRAM_CE_N           (SRAM_CE_N),
     //.SRAM_ADDR           (SRAM_ADDR),
@@ -331,23 +252,22 @@ rememotech rememotech
     //.SRAM_WE_N           (SRAM_WE_N),
     //.SRAM_DQ             (SRAM_DQ),
     // SD card
-    .SD_CLK              (sdclk),
-    .SD_CMD              (sdss),
-    .SD_DAT              (sdmiso),
-    .SD_DAT3             (sdmosi),
+    .SD_CLK              (SD_SCK),
+    .SD_CMD              (SD_MOSI),
+    .SD_DAT              (SD_MISO),
+    .SD_DAT3             (SD_CS),
+
     // PS/2 keyboard
     .PS2_CLK             (Ps2_Clk),
     .PS2_DAT             (Ps2_Dat),
     // switches
     //.SW                  (10'b0001010000), //Forzamos monitor(6), Pal normal-60Hz(5:4), y sin externalrom(1:0)
-	 .SW                  ({CpuSpeed,status[4],status[2],status[3],2'b0,2'b0}), //Forzamos monitor(6), Pal normal-60Hz(5:4), y sin externalrom(1:0)
+	 .SW                  ({CpuSpeed,status[4],status[2],~status[3],2'b0,2'b0}), //Forzamos monitor(6), Pal normal-60Hz(5:4), y sin externalrom(1:0)
     // key switches
     .KEY                 ({reset,3'b111}),
     // LEDs
-    .LEDR                (LEDR),
+    //.LEDR                (),
     //.LEDG                (),
-    // 7 segment displays
-    //.HEX3,HEX2,HEX1,HEX0 (),
     // VGA output
     .VGA_R               (r),
     .VGA_G               (g),
@@ -362,29 +282,7 @@ rememotech rememotech
     // UART
     //.UART_RXD            (),
     //.UART_TXD            (),
-    // Daughter board, LED
-    //.G0_LED              (),
-    // Daughter board, Centronics
-    //.G0_PRD              (),
-    //.G0_STROBE_n         (),
-    //.G0_SLCT             (),
-    //.G0_ERROR_n          (),
-    //.G0_BUSY             (),
-    //.G0_PE               (),
-    // Daughter board, port 7
-    //.G0_POT              (),
-    //.G0_OTSTB_N          (),
-    //.G0_PIN              (),
-    //.G0_INSTB            (),
-    // Daughter board, EEPROM slot
-    //.G0_A                (),
-    //.G1_A                (),
-    //.G1_D                (),
-    //.G1_OE_n             (),
-    //.G1_CE_n             (),
-    // Daughter board, 2nd monitor
-    //.G1_R,G1_G,G1_B      (),
-    //.G1_HS,G1_VS         ()
+
 	 .Clk_Video           	(clk_25Mhz),
 	 .Bram_Data 				(BramData),		//: OUT STD_LOGIC_VECTOR (15 DOWNTO 0);
 	 .Z80_Addr 					(Z80Addr),
@@ -507,13 +405,14 @@ wire [15:0] DebugL0, DebugL1,DebugL2, DebugL3,DebugL4, DebugL5, DebugL6, DebugL7
 //assign DebugL1 = ({5'b00010,5'b00011,5'b00011})
 
 
-assign DebugL0 = {4'b0000,{3'b000,clk},{3'b000,status[9]},{3'b000,clk_25Mhz}};//BramData;//rememotech.U_RamRom.q[14:0];
+assign DebugL0 = {{2'b00,SD_SCK,SD_CD},{3'b000,clk},{3'b000,status[9]},{3'b000,clk_25Mhz}};//BramData;//rememotech.U_RamRom.q[14:0];
 //assign DebugL1 = {5'b00000,5'b00001,{4'b0000,clk_25Mhz}}; //assign DebugL1 = Z80Addr[14:0];
 assign DebugL1 = Z80Addr;
 assign DebugL2 = Z80Data;
 assign DebugL3 = Z80F_BData; //"00" & not ctc_interrupt & M1_n & MREQ_n & IORQ_n & RD_n & WR_n & rom_q;
 assign DebugL4 = Hex;
 assign DebugL5 = BramData;
+
 
 
 

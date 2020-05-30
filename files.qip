@@ -1,9 +1,3 @@
-#set_global_assignment -name VERILOG_FILE rtl/lfsr.v
-#set_global_assignment -name SYSTEMVERILOG_FILE rtl/cos.sv
-#set_global_assignment -name SYSTEMVERILOG_FILE rtl/mycore.v
-#set_global_assignment -name SDC_FILE mycore.sdc
-#set_global_assignment -name SYSTEMVERILOG_FILE mycore.sv
-
 set_global_assignment -name VHDL_FILE rtl/dart.vhd
 set_global_assignment -name VHDL_FILE rtl/accelerator.vhd
 set_global_assignment -name VHDL_FILE rtl/i2c_loader.vhd
@@ -39,6 +33,5 @@ set_global_assignment -name VHDL_FILE rtl/boot_rom.vhd
 set_global_assignment -name VHDL_FILE rtl/Memory.vhd
 set_global_assignment -name VHDL_FILE rtl/Debug-Overlay.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE Rememotech.sv
-set_global_assignment -name SYSTEMVERILOG_FILE Rememotech-TestBRAM.sv
 set_global_assignment -name SDC_FILE rememotech.sdc
 set_global_assignment -name SIGNALTAP_FILE stp1.stp
