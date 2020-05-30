@@ -380,9 +380,9 @@ wire VGA_HS_o, VGA_VS_o, VGA_DE_o;
 wire [7:0] VGA_R_tmp;
 wire [7:0] VGA_G_tmp;
 wire [7:0] VGA_B_tmp;
-assign VGA_R_tmp = {r, 4'b0};
-assign VGA_G_tmp = {g, 4'b0};
-assign VGA_B_tmp = {b, 4'b0};
+assign VGA_R_tmp = {r, r}; //4'b0};
+assign VGA_G_tmp = {g, g}; //4'b0};
+assign VGA_B_tmp = {b, b}; //4'b0};
 
 wire VGA_HS_tmp, VGA_VS_tmp, VGA_DE_tmp, VGA_CLK_tmp, Show; // si visible o si no visible
 
