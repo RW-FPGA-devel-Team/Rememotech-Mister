@@ -248,13 +248,14 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 
 ///////////////////////   CLOCKS   ///////////////////////////////
 
-wire clk_25Mhz, clk_200Mhz;
+wire clk_25Mhz, clk_200Mhz,clk_100Mhz;
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_25Mhz),
-	.outclk_1(clk_200Mhz)
+	.outclk_1(clk_200Mhz),
+	.outclk_2(clk_100Mhz)
 );
 
 //Intento VHD
@@ -276,7 +277,7 @@ sd_card sd_card
 (
 	.*,
 	.clk_sys(CLK_50M),
-	.clk_spi(clk_200Mhz),//(clk_250Mhz),
+	.clk_spi(clk_100Mhz),//(clk_250Mhz),
 	.sdhc(status[11]),
 	.sck(sdclk),
 	.ss(sdss | ~vsd_sel),

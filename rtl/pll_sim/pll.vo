@@ -1,5 +1,5 @@
 //IP Functional Simulation Model
-//VERSION_BEGIN 17.1 cbx_mgl 2017:10:25:18:08:29:SJ cbx_simgen 2017:10:25:18:06:53:SJ  VERSION_END
+//VERSION_BEGIN 17.0 cbx_mgl 2017:07:13:10:04:39:SJ cbx_simgen 2017:07:13:08:24:32:SJ  VERSION_END
 // synthesis VERILOG_INPUT_VERSION VERILOG_2001
 // altera message_off 10463
 
@@ -13,11 +13,12 @@
 // associated documentation or information are expressly subject 
 // to the terms and conditions of the Intel Program License 
 // Subscription Agreement, the Intel Quartus Prime License Agreement,
-// the Intel FPGA IP License Agreement, or other applicable license
-// agreement, including, without limitation, that your use is for
-// the sole purpose of programming logic devices manufactured by
-// Intel and sold by Intel or its authorized distributors.  Please
-// refer to the applicable agreement for further details.
+// the Intel MegaCore Function License Agreement, or other 
+// applicable license agreement, including, without limitation, 
+// that your use is for the sole purpose of programming logic 
+// devices manufactured by Intel and sold by Intel or its 
+// authorized distributors.  Please refer to the applicable 
+// agreement for further details.
 
 // You may only use these simulation model output files for simulation
 // purposes and expressly not for synthesis or any other purposes (in which
@@ -242,7 +243,7 @@ module  pll
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency15 = "0 MHz",
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency16 = "0 MHz",
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency17 = "0 MHz",
-		pll_altera_pll_altera_pll_i_2016.output_clock_frequency2 = "4.000000 MHz",
+		pll_altera_pll_altera_pll_i_2016.output_clock_frequency2 = "100.000000 MHz",
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency3 = "1.000000 MHz",
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency4 = "0 MHz",
 		pll_altera_pll_altera_pll_i_2016.output_clock_frequency5 = "0 MHz",

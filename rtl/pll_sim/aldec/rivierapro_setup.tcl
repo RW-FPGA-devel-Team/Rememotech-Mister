@@ -12,7 +12,7 @@
 # or its authorized distributors. Please refer to the applicable 
 # agreement for further details.
 
-# ACDS 17.1 590 win32 2020.06.01.22:11:37
+# ACDS 17.0 602 linux 2020.06.02.00:50:11
 # ----------------------------------------
 # Auto-generated simulation script rivierapro_setup.tcl
 # ----------------------------------------
@@ -113,7 +113,7 @@ if ![info exists QSYS_SIMDIR] {
 }
 
 if ![info exists QUARTUS_INSTALL_DIR] { 
-  set QUARTUS_INSTALL_DIR "C:/intelfpga/17.1/quartus/"
+  set QUARTUS_INSTALL_DIR "/home/rampa/intelFPGA_lite/17.0/quartus/"
 }
 
 if ![info exists USER_DEFINED_COMPILE_OPTIONS] { 
@@ -262,7 +262,7 @@ alias h {
   echo
   echo "SYSTEM_INSTANCE_NAME                              -- Instantiated system module name inside top level module."
   echo
-  echo "QSYS_SIMDIR                                       -- Platform Designer base simulation directory."
+  echo "QSYS_SIMDIR                                       -- Qsys base simulation directory."
   echo
   echo "QUARTUS_INSTALL_DIR                               -- Quartus installation directory."
   echo
