@@ -154,7 +154,10 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 localparam CONF_STR = {
 	"Rememotech;;",
 	"-;",
-//	"OB,Negate SD_CS, No, Yes;",
+	"S,VHD;",
+	"OE,Reset after Mount,No,Yes;",
+	"-;",
+	"OB,SDHC, No, Yes;",
 	"O4,Video Out,80Col,VDP;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O2,PAL,Normal,Marat;",
@@ -186,6 +189,24 @@ wire [31:0] status;
 wire [10:0] ps2_key;
 
 
+//Intento vhd
+wire [31:0] sd_lba;
+wire        sd_rd;
+wire        sd_wr;
+wire        sd_ack;
+wire  [8:0] sd_buff_addr;
+wire  [7:0] sd_buff_dout;
+wire  [7:0] sd_buff_din;
+wire        sd_buff_wr;
+wire        img_mounted;
+wire        img_readonly;
+wire [63:0] img_size;
+wire        sd_ack_conf;
+
+
+
+
+
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -197,6 +218,24 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.buttons(buttons),
 	.status(status),
 //	.status_menumask({status[5]}),
+
+
+//Intento vhd
+	.sd_lba(sd_lba),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
+	.sd_ack(sd_ack),
+	.sd_ack_conf(sd_ack_conf),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din),
+	.sd_buff_wr(sd_buff_wr),
+	.img_mounted(img_mounted),
+	.img_readonly(img_readonly),
+	.img_size(img_size),
+	.ioctl_wait(0),
+	
+
 	
 	.ps2_key(ps2_key),
 
@@ -209,15 +248,70 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 
 ///////////////////////   CLOCKS   ///////////////////////////////
 
-wire clk_25Mhz;
+wire clk_25Mhz, clk_200Mhz;
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
-	.outclk_0(clk_25Mhz)
+	.outclk_0(clk_25Mhz),
+	.outclk_1(clk_200Mhz)
 );
 
-wire reset = RESET | status[0] | buttons[1];
+//Intento VHD
+//wire reset = RESET | status[0] | buttons[1];
+wire reset = RESET | status[0] | buttons[1] | (status[14] && img_mounted);
+
+//////////////////   SD   ///////////////////
+
+wire sdclk;
+wire sdmosi;
+wire sdmiso = vsd_sel ? vsdmiso : SD_MISO;
+wire sdss;
+
+reg vsd_sel = 0;
+always @(posedge clk_sys) if(img_mounted) vsd_sel <= |img_size;
+
+wire vsdmiso;
+sd_card sd_card
+(
+	.*,
+	.clk_sys(CLK_50M),
+	.clk_spi(clk_200Mhz),//(clk_250Mhz),
+	.sdhc(status[11]),
+	.sck(sdclk),
+	.ss(sdss | ~vsd_sel),
+	.mosi(sdmosi),
+	.miso(vsdmiso)
+);
+
+assign SD_CS   = sdss   |  vsd_sel;
+assign SD_SCK  = sdclk  & ~vsd_sel;
+assign SD_MOSI = sdmosi & ~vsd_sel;
+
+
+//Para el Led -> TODO
+//reg sd_act;
+//
+//always @(posedge clk_sys) begin
+//	reg old_mosi, old_miso;
+//	integer timeout = 0;
+//
+//	old_mosi <= sdmosi;
+//	old_miso <= sdmiso;
+//
+//	sd_act <= 0;
+//	if(timeout < 1000000) begin
+//		timeout <= timeout + 1;
+//		sd_act <= 1;
+//	end
+//
+//	if((old_mosi ^ sdmosi) || (old_miso ^ sdmiso)) timeout <= 0;
+//end
+
+
+
+
+
 
 //////////////////////////////////////////////////////////////////
 
@@ -230,15 +324,10 @@ wire VBlank;
 wire VSync;
 wire Ps2_Clk, Ps2_Dat;
 wire  [2:0] CpuSpeed;
-//wire SD_CS_n, SD_SCK_tmp, SD_MOSI_tmp;//,SD_MISO_tmp;
-
-//assign SD_CS = SD_CS_n;
-//assign SD_SCK = SD_SCK_tmp;
-//assign SD_MOSI = SD_MOSI_tmp;
 
 
 
-assign CpuSpeed = (status[7:5]==3'b0) ? 3'b001:status[7:5];
+assign CpuSpeed = (status[7:5]==3'b0) ? 3'b001:status[7:5]; //Si 000(25Mzh) -> 001(12,5 Mz) 25 no arranca.
 
 rememotech rememotech
     (
@@ -252,10 +341,17 @@ rememotech rememotech
     //.SRAM_WE_N           (SRAM_WE_N),
     //.SRAM_DQ             (SRAM_DQ),
     // SD card
-    .SD_CLK              (SD_SCK),
-    .SD_CMD              (SD_MOSI),
-    .SD_DAT              (SD_MISO),
-    .SD_DAT3             (SD_CS),
+
+//Intento VHD
+//    .SD_CLK              (SD_SCK),
+//    .SD_CMD              (SD_MOSI),
+//    .SD_DAT              (SD_MISO),
+//    .SD_DAT3             (SD_CS),
+    .SD_CLK              (sdclk),
+    .SD_CMD              (sdmosi),
+    .SD_DAT              (sdmiso),
+    .SD_DAT3             (sdss),
+
 
     // PS/2 keyboard
     .PS2_CLK             (Ps2_Clk),
@@ -405,13 +501,13 @@ wire [15:0] DebugL0, DebugL1,DebugL2, DebugL3,DebugL4, DebugL5, DebugL6, DebugL7
 //assign DebugL1 = ({5'b00010,5'b00011,5'b00011})
 
 
-assign DebugL0 = {{2'b00,SD_SCK,SD_CD},{3'b000,clk},{3'b000,status[9]},{3'b000,clk_25Mhz}};//BramData;//rememotech.U_RamRom.q[14:0];
+assign DebugL0 = {{1'b0,vsd_sel,img_mounted,SD_CD},{3'b000,clk},{3'b000,status[9]},{3'b000,clk_25Mhz}};//BramData;//rememotech.U_RamRom.q[14:0];
 //assign DebugL1 = {5'b00000,5'b00001,{4'b0000,clk_25Mhz}}; //assign DebugL1 = Z80Addr[14:0];
 assign DebugL1 = Z80Addr;
 assign DebugL2 = Z80Data;
 assign DebugL3 = Z80F_BData; //"00" & not ctc_interrupt & M1_n & MREQ_n & IORQ_n & RD_n & WR_n & rom_q;
 assign DebugL4 = Hex;
-assign DebugL5 = BramData;
+assign DebugL5 = img_size[3:0];//BramData;
 
 
 
