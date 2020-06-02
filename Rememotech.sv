@@ -154,11 +154,11 @@ assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 localparam CONF_STR = {
 	"Rememotech;;",
 	"-;",
+	"O4,Video Out,80Col,VDP;",
+	"-;",	
 	"S,VHD;",
 	"OE,Reset after Mount,No,Yes;",
 	"-;",
-	"OB,SDHC, No, Yes;",
-	"O4,Video Out,80Col,VDP;",
 	"O1,Aspect ratio,4:3,16:9;",
 	"O2,PAL,Normal,Marat;",
 	"O3,Hz,60,50;",
@@ -248,13 +248,13 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 
 ///////////////////////   CLOCKS   ///////////////////////////////
 
-wire clk_25Mhz, clk_200Mhz;
+wire clk_25Mhz, clk_100Mhz;
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_25Mhz),
-	.outclk_1(clk_200Mhz)
+	.outclk_1(clk_100Mhz)
 );
 
 //Intento VHD
@@ -276,8 +276,8 @@ sd_card sd_card
 (
 	.*,
 	.clk_sys(CLK_50M),
-	.clk_spi(clk_200Mhz),//(clk_250Mhz),
-	.sdhc(status[11]),
+	.clk_spi(clk_100Mhz),//(clk_250Mhz),
+	.sdhc(0),
 	.sck(sdclk),
 	.ss(sdss | ~vsd_sel),
 	.mosi(sdmosi),
